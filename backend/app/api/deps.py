@@ -40,9 +40,11 @@ async def check_first_run(db: AsyncSession = Depends(get_db)) -> bool:
 
 # --- 安全依赖 ---
 
-# 定义 OAuth2 "方案", 它告诉 FastAPI 去哪里取 token
-# (tokenUrl="api/v1/login" 指向我们的 auth.py 路由)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/login")
+# *** 关键修复 ***
+# 路径必须是完整的 API 路径: /api/v1/auth/login
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+# *** 结束修复 ***
+
 
 async def get_current_active_user(
     token: str = Depends(oauth2_scheme),
