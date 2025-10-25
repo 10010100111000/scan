@@ -21,8 +21,8 @@ class OrgRead(BaseModel):
 
 # --- User Schemas ---
 
-class UserCreate(BaseModel):
-    # "创建" 时, 我们需要明文密码
+class AdminCreate(BaseModel):
+    # (修复) 重命名, 用于 /setup 接口
     username: str
     password: str 
 
@@ -35,7 +35,7 @@ class UserRead(BaseModel):
     class Config:
         orm_mode = True # 兼容 SQLAlchemy 模型
 
-# --- 新增：Token (认证) Schemas ---
+# --- Token (认证) Schemas ---
 
 class Token(BaseModel):
     """
