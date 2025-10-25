@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 #1.数据库连接字符串
-DATABASE_URL = "postgresql+asyncpg://user:password@localhost/dbname"
+DATABASE_URL = "postgresql+asyncpg://kali:kali@localhost/test"
 
 #2.创建异步引擎
 engine = create_async_engine(DATABASE_URL, echo=True)
