@@ -1,5 +1,6 @@
 from fastapi import FastAPI,Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import AsyncGenerator
 
 #导入数据库引擎,基类,会话
 from app.data.session import engine,AsyncSessionLocal
@@ -27,13 +28,13 @@ async def on_startup():
         await conn.run_sync(Base.metadata.create_all)
     print("数据库表检查/创建完毕。")
 
-
 # 3. 数据库会话“依赖” (Dependency)
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:
             yield session
         finally:
+            await session.close()
             await session.close()
 
 
