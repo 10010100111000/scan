@@ -1,8 +1,10 @@
+# backend/app/api/v1/schemas.py
 """
 定义 Pydantic 模型 (Schemas), 用于 API 的数据验证和响应。
 """
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 # --- Organization Schemas ---
 
@@ -32,3 +34,18 @@ class UserRead(BaseModel):
     
     class Config:
         orm_mode = True # 兼容 SQLAlchemy 模型
+
+# --- 新增：Token (认证) Schemas ---
+
+class Token(BaseModel):
+    """
+    /login 接口成功后返回的响应
+    """
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    """
+    解码 token 后得到的数据内容
+    """
+    username: Optional[str] = None
