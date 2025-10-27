@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Any, Dict
 
-# --- 通用枚举 (与 models.py 保持一致) ---
+# --- 通用枚举 (简化表示, 实际应用中可使用 Python Enum) ---
 AssetTypeEnum = "domain | cidr"
 IPStatusEnum = "discovered | confirmed | archived"
 HostStatusEnum = "discovered | confirmed | archived | out_of_scope"
@@ -26,6 +26,7 @@ class TagCreate(TagBase):
 
 class TagRead(TagBase):
     id: int
+    # color: Optional[str] = None # 可选
 
     class Config:
         orm_mode = True
@@ -49,10 +50,11 @@ class OrgRead(OrgBase):
 
 class AssetBase(BaseModel):
     name: str
-    type: str # 对应 Enum("domain", "cidr")
+    type: str # 实际应使用 AssetTypeEnum 或 Pydantic 的 Literal/Enum
 
 class AssetCreate(AssetBase):
-    organization_id: int
+    # 创建时不需要 organization_id, 因为它从 URL 路径获取
+    pass
 
 class AssetRead(AssetBase):
     id: int
@@ -68,17 +70,21 @@ class IPAddressBase(BaseModel):
     ip_address: str
     geolocation: Optional[Dict[str, Any]] = None
     vendor: Optional[str] = None
-    status: str = "discovered" # 对应 Enum
+    asn_number: Optional[int] = None # 新增
+    asn_name: Optional[str] = None # 新增
+    asn_country: Optional[str] = None # 新增
+    status: str = "discovered" # 实际应使用 IPStatusEnum
     is_bookmarked: bool = False
 
 class IPAddressCreate(IPAddressBase):
+    # IP 通常由扫描发现, API 创建可能用于手动添加
     pass
 
 class IPAddressRead(IPAddressBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-    tags: List[TagRead] = [] # 包含 IP 的标签列表
+    tags: List[TagRead] = [] # 包含关联的标签
 
     class Config:
         orm_mode = True
@@ -87,10 +93,11 @@ class IPAddressRead(IPAddressBase):
 
 class HostBase(BaseModel):
     hostname: str
-    status: str = "discovered" # 对应 Enum
+    status: str = "discovered" # 实际应使用 HostStatusEnum
     is_bookmarked: bool = False
 
 class HostCreate(HostBase):
+    # 创建时需要组织 ID, 根资产 ID 可选
     organization_id: int
     root_asset_id: Optional[int] = None
 
@@ -100,7 +107,7 @@ class HostRead(HostBase):
     root_asset_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    tags: List[TagRead] = [] # 包含 Host 的标签列表
+    tags: List[TagRead] = [] # 包含关联的标签
 
     class Config:
         orm_mode = True
@@ -109,6 +116,10 @@ class HostRead(HostBase):
 class PortBase(BaseModel):
     port_number: int
     service_name: Optional[str] = None
+
+class PortCreate(PortBase):
+     # 创建时需要 IP ID
+     ip_address_id: int
 
 class PortRead(PortBase):
     id: int
@@ -128,10 +139,12 @@ class HTTPServiceBase(BaseModel):
     response_headers: Optional[Dict[str, Any]] = None
     screenshot_path: Optional[str] = None
     is_bookmarked: bool = False
-    # *** 新增：Favicon 哈希 ***
-    favicon_hash: Optional[str] = None
-    # *** 结束新增 ***
-    ssl_info: Optional[Dict[str, Any]] = None # 证书信息
+    favicon_hash: Optional[str] = None # 新增
+    ssl_info: Optional[Dict[str, Any]] = None # 新增
+
+class HTTPServiceCreate(HTTPServiceBase):
+    # 创建时需要端口 ID
+    port_id: int
 
 class HTTPServiceRead(HTTPServiceBase):
     id: int
@@ -146,11 +159,17 @@ class HTTPServiceRead(HTTPServiceBase):
 class VulnerabilityBase(BaseModel):
     vulnerability_name: str
     template_id: Optional[str] = None
-    severity: str # 对应 Enum
+    severity: str # 实际应使用 SeverityEnum
     matched_at: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
-    status: str = "new" # 对应 Enum
+    status: str = "new" # 实际应使用 VulnStatusEnum
     is_bookmarked: bool = False
+
+class VulnerabilityCreate(VulnerabilityBase):
+    # 创建时需要关联资产 ID (Host 或 HTTPService)
+    host_id: Optional[int] = None
+    http_service_id: Optional[int] = None
+    # 应至少提供一个关联
 
 class VulnerabilityRead(VulnerabilityBase):
     id: int
@@ -167,7 +186,7 @@ class GenericFindingBase(BaseModel):
     finding_type: str
     value: str
     details: Optional[Dict[str, Any]] = None
-    status: str = "new" # 对应 Enum
+    status: str = "new" # 实际应使用 FindingStatusEnum
     related_asset_type: Optional[str] = None
     related_asset_id: Optional[int] = None
 
@@ -187,16 +206,19 @@ class GenericFindingRead(GenericFindingBase):
 class ScanTaskBase(BaseModel):
     config_name: str
     asset_id: Optional[int] = None
-    status: str = "pending" # 对应 Enum
-    log: Optional[str] = None
-    completed_at: Optional[datetime] = None
+    # target_type: Optional[str] = None # 未来可扩展
+    # target_id: Optional[int] = None # 未来可扩展
+    status: str = "pending" # 实际应使用 TaskStatusEnum
 
 class ScanTaskCreate(ScanTaskBase):
+    # 通常由系统内部根据 Asset ID 和 Config Name 创建
     pass
 
 class ScanTaskRead(ScanTaskBase):
     id: int
+    log: Optional[str] = None
     created_at: datetime
+    completed_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -204,6 +226,9 @@ class ScanTaskRead(ScanTaskBase):
 # --- RawScanResult Schemas ---
 class RawScanResultBase(BaseModel):
     data: Dict[str, Any]
+
+class RawScanResultCreate(RawScanResultBase):
+    scan_task_id: int
 
 class RawScanResultRead(RawScanResultBase):
     id: int
@@ -217,7 +242,7 @@ class WebFindingBase(BaseModel):
     path: str
     status_code: Optional[int] = None
     content_length: Optional[int] = None
-    status: str = "new" # 对应 Enum
+    status: str = "new" # 实际应使用 WebFindingStatusEnum
 
 class WebFindingCreate(WebFindingBase):
     http_service_id: int
