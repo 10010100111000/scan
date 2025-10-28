@@ -1,32 +1,32 @@
 # backend/app/api/v1/schemas.py
 """
 定义 Pydantic 模型 (Schemas), 用于 API 的数据验证和响应。
+(增强版：添加了 Field 的 description 和 example)
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field # <-- 导入 Field
 from datetime import datetime
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Literal
 
-# --- 通用枚举 (简化表示, 实际应用中可使用 Python Enum) ---
-AssetTypeEnum = "domain | cidr"
-IPStatusEnum = "discovered | confirmed | archived"
-HostStatusEnum = "discovered | confirmed | archived | out_of_scope"
-SeverityEnum = "critical | high | medium | low | info"
-VulnStatusEnum = "new | reviewed | false_positive | remediated"
-FindingStatusEnum = "new | reviewed"
-TaskStatusEnum = "pending | running | completed | failed"
-WebFindingStatusEnum = "new | reviewed | false_positive"
+# --- 通用枚举 ---
+AssetTypeLiteral = Literal["domain", "cidr"]
+IPStatusLiteral = Literal["discovered", "confirmed", "archived"]
+HostStatusLiteral = Literal["discovered", "confirmed", "archived", "out_of_scope"]
+SeverityLiteral = Literal["critical", "high", "medium", "low", "info"]
+VulnStatusLiteral = Literal["new", "reviewed", "false_positive", "remediated"]
+FindingStatusLiteral = Literal["new", "reviewed"]
+TaskStatusLiteral = Literal["pending", "running", "completed", "failed"]
+WebFindingStatusLiteral = Literal["new", "reviewed", "false_positive"]
 
 
 # --- Tag Schemas ---
 class TagBase(BaseModel):
-    name: str
+    name: str = Field(..., description="标签名称", example="敏感")
 
 class TagCreate(TagBase):
     pass
 
 class TagRead(TagBase):
     id: int
-    # color: Optional[str] = None # 可选
 
     class Config:
         orm_mode = True
@@ -34,7 +34,7 @@ class TagRead(TagBase):
 # --- Organization Schemas ---
 
 class OrgBase(BaseModel):
-    name: str
+    name: str = Field(..., description="组织或项目的名称", example="我的测试项目")
 
 class OrgCreate(OrgBase):
     pass
@@ -49,12 +49,19 @@ class OrgRead(OrgBase):
 # --- Asset Schemas ---
 
 class AssetBase(BaseModel):
-    name: str
-    type: str # 实际应使用 AssetTypeEnum 或 Pydantic 的 Literal/Enum
+    name: str = Field(..., description="根资产的名称", example="example.com")
+    type: AssetTypeLiteral = Field(..., description="根资产的类型", example="domain")
 
 class AssetCreate(AssetBase):
     # 创建时不需要 organization_id, 因为它从 URL 路径获取
-    pass
+    # 我们可以在这里添加一个示例, FastAPI 会在 /docs 的 Request Body 中显示它
+    class Config:
+        schema_extra = {
+            "example": {
+                "name": "example.com",
+                "type": "domain"
+            }
+        }
 
 class AssetRead(AssetBase):
     id: int
@@ -67,24 +74,23 @@ class AssetRead(AssetBase):
 # --- IPAddress Schemas ---
 
 class IPAddressBase(BaseModel):
-    ip_address: str
-    geolocation: Optional[Dict[str, Any]] = None
-    vendor: Optional[str] = None
-    asn_number: Optional[int] = None # 新增
-    asn_name: Optional[str] = None # 新增
-    asn_country: Optional[str] = None # 新增
-    status: str = "discovered" # 实际应使用 IPStatusEnum
-    is_bookmarked: bool = False
+    ip_address: str = Field(..., description="IP 地址", example="192.168.1.1")
+    geolocation: Optional[Dict[str, Any]] = Field(None, description="地理位置信息 (JSON)")
+    vendor: Optional[str] = Field(None, description="IP 归属厂商", example="Aliyun")
+    asn_number: Optional[int] = Field(None, description="ASN 编号", example=12345)
+    asn_name: Optional[str] = Field(None, description="ASN 名称", example="EXAMPLE-ASN")
+    asn_country: Optional[str] = Field(None, description="ASN 国家", example="US")
+    status: IPStatusLiteral = Field("discovered", description="IP 状态")
+    is_bookmarked: bool = Field(False, description="是否收藏")
 
 class IPAddressCreate(IPAddressBase):
-    # IP 通常由扫描发现, API 创建可能用于手动添加
     pass
 
 class IPAddressRead(IPAddressBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-    tags: List[TagRead] = [] # 包含关联的标签
+    tags: List[TagRead] = []
 
     class Config:
         orm_mode = True
@@ -92,14 +98,13 @@ class IPAddressRead(IPAddressBase):
 # --- Host Schemas ---
 
 class HostBase(BaseModel):
-    hostname: str
-    status: str = "discovered" # 实际应使用 HostStatusEnum
-    is_bookmarked: bool = False
+    hostname: str = Field(..., description="主机名或子域名", example="app.example.com")
+    status: HostStatusLiteral = Field("discovered", description="主机状态")
+    is_bookmarked: bool = Field(False, description="是否收藏")
 
 class HostCreate(HostBase):
-    # 创建时需要组织 ID, 根资产 ID 可选
-    organization_id: int
-    root_asset_id: Optional[int] = None
+    organization_id: int = Field(..., description="所属组织的 ID")
+    root_asset_id: Optional[int] = Field(None, description="关联的根资产 ID (可选)")
 
 class HostRead(HostBase):
     id: int
@@ -107,18 +112,18 @@ class HostRead(HostBase):
     root_asset_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    tags: List[TagRead] = [] # 包含关联的标签
+    tags: List[TagRead] = []
 
     class Config:
         orm_mode = True
 
+
 # --- Port Schemas ---
 class PortBase(BaseModel):
-    port_number: int
-    service_name: Optional[str] = None
+    port_number: int = Field(..., description="端口号", example=443)
+    service_name: Optional[str] = Field(None, description="服务名称 (由扫描器识别)", example="https")
 
 class PortCreate(PortBase):
-     # 创建时需要 IP ID
      ip_address_id: int
 
 class PortRead(PortBase):
@@ -132,18 +137,17 @@ class PortRead(PortBase):
 
 # --- HTTPService Schemas ---
 class HTTPServiceBase(BaseModel):
-    url: str
-    title: Optional[str] = None
-    status_code: Optional[int] = None
-    tech: Optional[Dict[str, Any]] = None
-    response_headers: Optional[Dict[str, Any]] = None
-    screenshot_path: Optional[str] = None
-    is_bookmarked: bool = False
-    favicon_hash: Optional[str] = None # 新增
-    ssl_info: Optional[Dict[str, Any]] = None # 新增
+    url: str = Field(..., description="完整的 URL", example="https://app.example.com")
+    title: Optional[str] = Field(None, description="网页标题")
+    status_code: Optional[int] = Field(None, description="HTTP 状态码", example=200)
+    tech: Optional[Dict[str, Any]] = Field(None, description="识别出的技术栈 (JSON)")
+    response_headers: Optional[Dict[str, Any]] = Field(None, description="HTTP 响应头 (JSON)")
+    screenshot_path: Optional[str] = Field(None, description="截图文件路径 (服务器本地路径)")
+    is_bookmarked: bool = Field(False, description="是否收藏")
+    favicon_hash: Optional[str] = Field(None, description="Favicon 的 MurmurHash3 哈希值")
+    ssl_info: Optional[Dict[str, Any]] = Field(None, description="SSL/TLS 证书信息 (JSON)")
 
 class HTTPServiceCreate(HTTPServiceBase):
-    # 创建时需要端口 ID
     port_id: int
 
 class HTTPServiceRead(HTTPServiceBase):
@@ -157,19 +161,17 @@ class HTTPServiceRead(HTTPServiceBase):
 
 # --- Vulnerability Schemas ---
 class VulnerabilityBase(BaseModel):
-    vulnerability_name: str
-    template_id: Optional[str] = None
-    severity: str # 实际应使用 SeverityEnum
-    matched_at: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
-    status: str = "new" # 实际应使用 VulnStatusEnum
-    is_bookmarked: bool = False
+    vulnerability_name: str = Field(..., description="漏洞名称或 CVE ID", example="CVE-2024-1234")
+    template_id: Optional[str] = Field(None, description="Nuclei 模板 ID (如果适用)")
+    severity: SeverityLiteral = Field(..., description="漏洞严重程度")
+    matched_at: Optional[str] = Field(None, description="漏洞触发的具体位置 (URL, 参数等)")
+    details: Optional[Dict[str, Any]] = Field(None, description="漏洞详情 (JSON, 例如 Nuclei 的输出)")
+    status: VulnStatusLiteral = Field("new", description="漏洞状态")
+    is_bookmarked: bool = Field(False, description="是否收藏")
 
 class VulnerabilityCreate(VulnerabilityBase):
-    # 创建时需要关联资产 ID (Host 或 HTTPService)
     host_id: Optional[int] = None
     http_service_id: Optional[int] = None
-    # 应至少提供一个关联
 
 class VulnerabilityRead(VulnerabilityBase):
     id: int
@@ -183,12 +185,12 @@ class VulnerabilityRead(VulnerabilityBase):
 
 # --- GenericFinding Schemas ---
 class GenericFindingBase(BaseModel):
-    finding_type: str
-    value: str
-    details: Optional[Dict[str, Any]] = None
-    status: str = "new" # 实际应使用 FindingStatusEnum
-    related_asset_type: Optional[str] = None
-    related_asset_id: Optional[int] = None
+    finding_type: str = Field(..., description="发现物的类型", example="dns_cname")
+    value: str = Field(..., description="发现物的值", example="app.cdn.provider.com")
+    details: Optional[Dict[str, Any]] = Field(None, description="额外信息 (JSON)")
+    status: FindingStatusLiteral = Field("new", description="发现物状态")
+    related_asset_type: Optional[str] = Field(None, description="关联资产类型 (host, ip_address)")
+    related_asset_id: Optional[int] = Field(None, description="关联资产 ID")
 
 class GenericFindingCreate(GenericFindingBase):
     organization_id: int
@@ -204,19 +206,17 @@ class GenericFindingRead(GenericFindingBase):
 
 # --- ScanTask Schemas ---
 class ScanTaskBase(BaseModel):
-    config_name: str
-    asset_id: Optional[int] = None
-    # target_type: Optional[str] = None # 未来可扩展
-    # target_id: Optional[int] = None # 未来可扩展
-    status: str = "pending" # 实际应使用 TaskStatusEnum
+    config_name: str = Field(..., description="使用的扫描配置名称 (来自 scanners.yaml)", example="Subfinder (默认)")
+    asset_id: Optional[int] = Field(None, description="关联的根资产 ID (可选)")
+    status: TaskStatusLiteral = Field("pending", description="任务状态")
 
 class ScanTaskCreate(ScanTaskBase):
-    # 通常由系统内部根据 Asset ID 和 Config Name 创建
+    # 通常由 /assets/{asset_id}/scan 接口内部创建
     pass
 
 class ScanTaskRead(ScanTaskBase):
     id: int
-    log: Optional[str] = None
+    log: Optional[str] = Field(None, description="任务执行日志 (通常只在失败时填充)")
     created_at: datetime
     completed_at: Optional[datetime] = None
 
@@ -225,7 +225,7 @@ class ScanTaskRead(ScanTaskBase):
 
 # --- RawScanResult Schemas ---
 class RawScanResultBase(BaseModel):
-    data: Dict[str, Any]
+    data: Dict[str, Any] = Field(..., description="扫描工具输出的单条原始数据 (JSON)")
 
 class RawScanResultCreate(RawScanResultBase):
     scan_task_id: int
@@ -239,10 +239,10 @@ class RawScanResultRead(RawScanResultBase):
 
 # --- WebFinding Schemas ---
 class WebFindingBase(BaseModel):
-    path: str
-    status_code: Optional[int] = None
-    content_length: Optional[int] = None
-    status: str = "new" # 实际应使用 WebFindingStatusEnum
+    path: str = Field(..., description="发现的 Web 路径", example="/admin.php")
+    status_code: Optional[int] = Field(None, description="HTTP 状态码")
+    content_length: Optional[int] = Field(None, description="响应内容长度")
+    status: WebFindingStatusLiteral = Field("new", description="路径状态")
 
 class WebFindingCreate(WebFindingBase):
     http_service_id: int
@@ -260,8 +260,8 @@ class WebFindingRead(WebFindingBase):
 # --- User Schemas ---
 
 class AdminCreate(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., description="管理员用户名")
+    password: str = Field(..., description="管理员密码")
 
 class UserRead(BaseModel):
     id: int
@@ -275,7 +275,7 @@ class UserRead(BaseModel):
 
 class Token(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
 
 class TokenData(BaseModel):
     username: Optional[str] = None
