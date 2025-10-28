@@ -6,7 +6,8 @@ from app.data.base import Base
 
 # 导入我们刚刚创建的“主 API 路由器”
 from app.api.api_router import api_router
-
+# 导入 ARQ 关闭函数
+from app.core.arq_config import close_arq_pool
 
 # 1. 创建 FastAPI 应用实例
 app = FastAPI(
@@ -22,6 +23,13 @@ async def on_startup():
         await conn.run_sync(Base.metadata.create_all)
     print("数据库表检查/创建完毕。")
 
+# --- 新增：定义一个“关闭”事件 ---
+@app.on_event("shutdown")
+async def on_shutdown():
+    """在 FastAPI 关闭时, 关闭 ARQ 连接池"""
+    print("FastAPI 关闭中，正在关闭 ARQ Redis 连接池...")
+    await close_arq_pool()
+    print("ARQ Redis 连接池已关闭。")
 
 # 3. 根路由 (保持不变)
 @app.get("/")
