@@ -1,7 +1,7 @@
 # 扫描器规则
 - config_name: "Subfinder (测试)"
   agent_type: "subdomain"
-  command_template: "subfinder -d {target} -silent -jsonl"
+  command_template: "subfinder -d {target} -silent -oJ"
   output_parser_type: "json_lines"
   data_mapping:
     hostname: "host"
