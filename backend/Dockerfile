@@ -13,7 +13,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # 2. 安装系统依赖和安全工具
 #    - nmap: 端口扫描
 #    - wget, git, gcc: 用于安装 Go 和编译依赖
-RUN apt-get update && apt-get install -y \
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
     nmap \
     wget \
     git \
