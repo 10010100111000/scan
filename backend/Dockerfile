@@ -26,30 +26,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # === 安装 ProjectDiscovery 官方预编译二进制（不编译 Go）===
-RUN ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then PD_ARCH="amd64"; else PD_ARCH="arm64"; fi && \
-    echo "Using arch: $PD_ARCH" && \
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    if [ "$ARCH" = "amd64" ]; then PD_ARCH="amd64"; else PD_ARCH="arm64"; fi; \
+    echo "Using arch: $PD_ARCH"; \
     \
-    echo "Installing subfinder..." && \
-    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip && \
-    unzip -jq subfinder_2.6.6_linux_${PD_ARCH}.zip subfinder && \
-    mv subfinder /usr/local/bin/subfinder && \
-    chmod +x /usr/local/bin/subfinder && \
-    rm -f subfinder_2.6.6_linux_${PD_ARCH}.zip && \
+    wget https://mirror.ghproxy.com/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip; \
+    unzip -jq subfinder_2.6.6_linux_${PD_ARCH}.zip subfinder; \
+    mv subfinder /usr/local/bin/; \
     \
-    echo "Installing httpx..." && \
-    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${PD_ARCH}.zip && \
-    unzip -jq httpx_1.6.0_linux_${PD_ARCH}.zip httpx && \
-    mv httpx /usr/local/bin/httpx && \
-    chmod +x /usr/local/bin/httpx && \
-    rm -f httpx_1.6.0_linux_${PD_ARCH}.zip && \
+    wget https://mirror.ghproxy.com/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${PD_ARCH}.zip; \
+    unzip -jq httpx_1.6.0_linux_${PD_ARCH}.zip httpx; \
+    mv httpx /usr/local/bin/; \
     \
-    echo "Installing nuclei..." && \
-    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${PD_ARCH}.zip && \
-    unzip -jq nuclei_3.2.0_linux_${PD_ARCH}.zip nuclei && \
-    mv nuclei /usr/local/bin/nuclei && \
-    chmod +x /usr/local/bin/nuclei && \
-    rm -f nuclei_3.2.0_linux_${PD_ARCH}.zip
+    wget https://mirror.ghproxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${PD_ARCH}.zip; \
+    unzip -jq nuclei_3.2.0_linux_${PD_ARCH}.zip nuclei; \
+    mv nuclei /usr/local/bin/; \
+    \
+    chmod +x /usr/local/bin/*; \
+    rm -f *.zip
+
 
 
 
