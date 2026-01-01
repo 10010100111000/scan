@@ -1,7 +1,58 @@
-# 扫描器规则
-- config_name: "Subfinder (测试)"
+# backend/configs/scanners.yaml
+# 扫描器规则配置
+# 变量说明: {target} : 目标资产 (域名或IP)
+
+# --- 1. 子域名发现 (Subfinder) ---
+- config_name: "Subfinder (默认)"
   agent_type: "subdomain"
-  command_template: "subfinder -d {target} -silent -oJ"
+  # -silent: 仅输出结果
+  # -jsonl: JSON Lines 格式输出
+  command_template: "subfinder -d {target} -silent -jsonl"
   output_parser_type: "json_lines"
   data_mapping:
-    hostname: "host"
+    hostname: "host"       # JSON中的 host 字段映射到数据库的 hostname
+    source: "source"       # JSON中的 source 字段
+
+# --- 2. 端口扫描 (Nmap) ---
+- config_name: "Nmap (快速扫描)"
+  agent_type: "portscan"
+  # -sS: SYN扫描 (需要root权限，docker中通常有)
+  # -T4: 快速时序
+  # --top-ports 1000: 扫描最常用的1000个端口
+  # -oX -: 输出XML到标准输出 (stdout)
+  command_template: "nmap -sS -T4 --top-ports 1000 -oX - {target}"
+  output_parser_type: "nmap_xml"
+  data_mapping:
+    # NmapXmlParser 已经固定了输出结构，这里留空即可
+    dummy: "self"
+
+# --- 3. Web 服务探测 (httpx) ---
+- config_name: "httpx (Web探活)"
+  agent_type: "http"
+  # -sc: 状态码, -title: 标题, -ip: 显示IP, -json: JSON输出
+  # echo {target} | ... 是因为 httpx 接收 stdin 输入
+  command_template: "echo {target} | httpx -sc -title -ip -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    url: "url"
+    title: "title"
+    status_code: "status_code"
+    tech: "tech"             # 技术栈指纹
+    web_server: "webserver"  # Server 头
+    # *** 关键字段 ***
+    ip: "host"               # httpx json 中的 host 字段通常是解析后的 IP
+    port: "port"             # httpx json 中的 port 字段
+
+# --- 4. 漏洞扫描 (Nuclei) ---
+- config_name: "Nuclei (高危漏洞)"
+  agent_type: "vulnerability"
+  # -s critical,high: 只扫高危严重漏洞
+  # -jsonl: 输出 JSON Lines
+  command_template: "nuclei -u {target} -severity critical,high -silent -jsonl"
+  output_parser_type: "json_lines"
+  data_mapping:
+    vulnerability_name: "info.name"
+    severity: "info.severity"
+    matched_at: "matched-at"
+    template_id: "template-id"
+    url: "matched-at"
