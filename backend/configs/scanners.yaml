@@ -7,7 +7,7 @@
   agent_type: "subdomain"
   # -silent: 仅输出结果
   # -jsonl: JSON Lines 格式输出
-  command_template: "subfinder -d {target} -silent -jsonl"
+  command_template: "subfinder -d {target} -silent -oJ"
   output_parser_type: "json_lines"
   data_mapping:
     hostname: "host"       # JSON中的 host 字段映射到数据库的 hostname
