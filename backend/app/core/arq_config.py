@@ -1,17 +1,17 @@
 # backend/app/core/arq_config.py
 """
-ARQ 任务队列的配置
+ARQ 任务队列的配置 (Docker/Local 兼容版)
 """
-import asyncio
-from arq import create_pool
+import os
 from arq.connections import RedisSettings
 
 # --- Redis 配置 ---
-# 在生产环境中, 这些值应该从环境变量读取
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
+# 优先从环境变量读取 (Docker环境), 否则使用默认值 (本地开发环境)
+# 在 docker-compose.yml 中, 我们把 REDIS_HOST 设置为了 "redis"
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_DATABASE = 0
-# REDIS_PASSWORD = "your_redis_password" # 如果有密码
+# REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None) # 如果有密码
 
 redis_settings = RedisSettings(
     host=REDIS_HOST,
@@ -21,10 +21,12 @@ redis_settings = RedisSettings(
 )
 
 # --- ARQ 队列名称 ---
-ARQ_QUEUE_NAME = "arq:queue" # 默认队列名
+ARQ_QUEUE_NAME = "arq:queue" 
 
-# --- 用于 API 推送任务的 ARQ 连接池 ---
-# (注意: worker.py 会有自己的连接方式)
+# --- ARQ 连接池管理 ---
+# 用于 API 端推送任务
+from arq import create_pool
+
 arq_pool = None
 
 async def get_arq_pool():
@@ -40,6 +42,5 @@ async def close_arq_pool():
     if arq_pool:
         await arq_pool.close()
 
-# --- Worker 中将要执行的任务函数名 ---
-# (我们稍后将在 worker.py 中定义这些函数)
-TASK_RUN_SCAN = "run_scan_task" # 示例任务名
+# --- 任务函数名称常量 ---
+TASK_RUN_SCAN = "run_scan_task"

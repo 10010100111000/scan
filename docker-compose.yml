@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # 1. 数据库服务 (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=pentest_user
+      - POSTGRES_PASSWORD=kali
+      - POSTGRES_DB=pentest_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  # 暴露给宿主机，方便您用 Navicat 等工具连接查看
+
+  # 2. 消息队列服务 (Redis)
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  # 3. 后端 API 服务
+  backend:
+    build: ./backend  # 根据 backend/Dockerfile 构建镜像
+    container_name: pentest_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app  # 挂载代码目录，修改代码后无需重建镜像
+    ports:
+      - "8000:8000"
+    environment:
+      # 注入环境变量，覆盖 session.py 和 arq_config.py 中的默认值
+      - DATABASE_URL=postgresql+asyncpg://pentest_user:kali@db:5432/pentest_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - db
+      - redis
+
+  # 4. 扫描 Worker 服务 (消费者)
+  worker:
+    build: ./backend  # 复用同一个镜像
+    container_name: pentest_worker
+    # 启动 ARQ Worker，--watch 实现代码修改后自动重启
+    command: arq worker.WorkerSettings --watch /app
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://pentest_user:kali@db:5432/pentest_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:
