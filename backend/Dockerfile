@@ -1,61 +1,57 @@
-# 使用官方 Python 3.9 轻量版作为基础镜像
-FROM python:3.9-slim
+# 使用明确发行版的 slim（非常关键）
+FROM python:3.9-slim-bullseye
 
-# 设置工作目录
 WORKDIR /app
 
-# 1. 设置环境变量
+# Python 运行环境
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# --- [国内加速] 1. 替换 Debian 系统源为阿里云镜像源 (加速 apt install nmap) ---
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
-    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+# 强制 apt 使用 IPv4，避免国内网络卡死
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 
-# 2. 安装系统基础依赖
-#    - nmap: 端口扫描核心
-#    - wget, curl, unzip: 用于下载和解压工具
-RUN apt-get update && apt-get install -y \
+# === 使用国内 Debian 源（slim 正确方式）===
+RUN rm -f /etc/apt/sources.list.d/* && \
+    echo "deb https://mirrors.aliyun.com/debian bullseye main contrib non-free" > /etc/apt/sources.list && \
+    echo "deb https://mirrors.aliyun.com/debian-security bullseye-security main contrib non-free" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.aliyun.com/debian bullseye-updates main contrib non-free" >> /etc/apt/sources.list
+
+# === 安装系统依赖（nmap 国内源）===
+RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     wget \
     curl \
     unzip \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. 极速安装 ProjectDiscovery 工具 (使用 GitHub 代理加速下载)
-#    自动检测架构 (amd64 或 arm64) 并下载对应版本
-#    使用了 https://mirror.ghproxy.com/ 进行加速
+# === 安装 ProjectDiscovery 官方预编译二进制（不编译 Go）===
 RUN ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then pd_arch="amd64"; else pd_arch="arm64"; fi && \
-    echo "Detected architecture: $pd_arch" && \
+    if [ "$ARCH" = "amd64" ]; then PD_ARCH="amd64"; else PD_ARCH="arm64"; fi && \
+    echo "Using arch: $PD_ARCH" && \
     \
-    # --- Subfinder ---
-    echo "Installing Subfinder..." && \
-    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${pd_arch}.zip && \
-    unzip -q subfinder_2.6.6_linux_${pd_arch}.zip && \
-    mv subfinder /usr/local/bin/ && \
-    rm subfinder_2.6.6_linux_${pd_arch}.zip && \
+    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip && \
+    unzip -q subfinder_2.6.6_linux_${PD_ARCH}.zip && \
+    mv subfinder /usr/local/bin/ && chmod +x /usr/local/bin/subfinder && \
+    rm -f subfinder_2.6.6_linux_${PD_ARCH}.zip && \
     \
-    # --- httpx ---
-    echo "Installing httpx..." && \
-    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${pd_arch}.zip && \
-    unzip -q httpx_1.6.0_linux_${pd_arch}.zip && \
-    mv httpx /usr/local/bin/ && \
-    rm httpx_1.6.0_linux_${pd_arch}.zip && \
+    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${PD_ARCH}.zip && \
+    unzip -q httpx_1.6.0_linux_${PD_ARCH}.zip && \
+    mv httpx /usr/local/bin/ && chmod +x /usr/local/bin/httpx && \
+    rm -f httpx_1.6.0_linux_${PD_ARCH}.zip && \
     \
-    # --- Nuclei ---
-    echo "Installing Nuclei..." && \
-    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${pd_arch}.zip && \
-    unzip -q nuclei_3.2.0_linux_${pd_arch}.zip && \
-    mv nuclei /usr/local/bin/ && \
-    rm nuclei_3.2.0_linux_${pd_arch}.zip
+    wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${PD_ARCH}.zip && \
+    unzip -q nuclei_3.2.0_linux_${PD_ARCH}.zip && \
+    mv nuclei /usr/local/bin/ && chmod +x /usr/local/bin/nuclei && \
+    rm -f nuclei_3.2.0_linux_${PD_ARCH}.zip
 
-# 4. 安装 Python 依赖 (使用清华源加速)
+# === Python 依赖（清华源）===
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    -r requirements.txt
 
-# 5. 复制项目代码
+# === 复制代码（最后一步，方便调试）===
 COPY . .
 
-# 6. 默认启动命令
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
