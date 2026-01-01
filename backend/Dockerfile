@@ -9,6 +9,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     # 将 Go 的 bin 目录加入 PATH，确保能直接运行 subfinder 等命令
     PATH="/root/go/bin:${PATH}"
+# 使用国内源（slim 正确方式）
+RUN rm -f /etc/apt/sources.list.d/* && \
+    echo "deb https://mirrors.aliyun.com/debian bullseye main contrib non-free" > /etc/apt/sources.list.d/debian.list && \
+    echo "deb https://mirrors.aliyun.com/debian-security bullseye-security main contrib non-free" >> /etc/apt/sources.list.d/debian.list && \
+    echo "deb https://mirrors.aliyun.com/debian bullseye-updates main contrib non-free" >> /etc/apt/sources.list.d/debian.list
 
 # 2. 安装系统依赖和安全工具
 #    - nmap: 端口扫描
