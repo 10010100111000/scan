@@ -1,5 +1,5 @@
 # 使用明确发行版的 slim（非常关键）
-FROM python:3.9-slim-bullseye
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
@@ -12,9 +12,9 @@ RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 
 # === 使用国内 Debian 源（slim 正确方式）===
 RUN rm -f /etc/apt/sources.list.d/* && \
-    echo "deb https://mirrors.aliyun.com/debian bullseye main contrib non-free" > /etc/apt/sources.list && \
-    echo "deb https://mirrors.aliyun.com/debian-security bullseye-security main contrib non-free" >> /etc/apt/sources.list && \
-    echo "deb https://mirrors.aliyun.com/debian bullseye-updates main contrib non-free" >> /etc/apt/sources.list
+    echo "deb https://mirrors.aliyun.com/debian bookworm main contrib non-free" > /etc/apt/sources.list && \
+    echo "deb https://mirrors.aliyun.com/debian-security bookworm-security main contrib non-free" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.aliyun.com/debian bookworm-updates main contrib non-free" >> /etc/apt/sources.list
 
 # === 安装系统依赖（nmap 国内源）===
 RUN apt-get update && apt-get install -y --no-install-recommends \
