@@ -252,5 +252,9 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
+    # 新增 email 字段
+    email = Column(String, unique=True, index=True, nullable=True) 
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    # 新增 is_superuser 字段
+    is_superuser = Column(Boolean, default=False)
