@@ -32,24 +32,25 @@ RUN ARCH=$(dpkg --print-architecture) && \
     \
     echo "Installing subfinder..." && \
     wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip && \
-    unzip -q subfinder_2.6.6_linux_${PD_ARCH}.zip && \
-    find . -type f -name subfinder -exec mv {} /usr/local/bin/subfinder \; && \
+    unzip -jq subfinder_2.6.6_linux_${PD_ARCH}.zip subfinder && \
+    mv subfinder /usr/local/bin/subfinder && \
     chmod +x /usr/local/bin/subfinder && \
-    rm -rf subfinder_2.6.6_linux_${PD_ARCH}* && \
+    rm -f subfinder_2.6.6_linux_${PD_ARCH}.zip && \
     \
     echo "Installing httpx..." && \
     wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${PD_ARCH}.zip && \
-    unzip -q httpx_1.6.0_linux_${PD_ARCH}.zip && \
-    find . -type f -name httpx -exec mv {} /usr/local/bin/httpx \; && \
+    unzip -jq httpx_1.6.0_linux_${PD_ARCH}.zip httpx && \
+    mv httpx /usr/local/bin/httpx && \
     chmod +x /usr/local/bin/httpx && \
-    rm -rf httpx_1.6.0_linux_${PD_ARCH}* && \
+    rm -f httpx_1.6.0_linux_${PD_ARCH}.zip && \
     \
     echo "Installing nuclei..." && \
     wget -q https://mirror.ghproxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${PD_ARCH}.zip && \
-    unzip -q nuclei_3.2.0_linux_${PD_ARCH}.zip && \
-    find . -type f -name nuclei -exec mv {} /usr/local/bin/nuclei \; && \
+    unzip -jq nuclei_3.2.0_linux_${PD_ARCH}.zip nuclei && \
+    mv nuclei /usr/local/bin/nuclei && \
     chmod +x /usr/local/bin/nuclei && \
-    rm -rf nuclei_3.2.0_linux_${PD_ARCH}*
+    rm -f nuclei_3.2.0_linux_${PD_ARCH}.zip
+
 
 
 # === Python 依赖（清华源）===
