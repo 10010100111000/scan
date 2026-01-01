@@ -31,15 +31,15 @@ RUN set -eux; \
     if [ "$ARCH" = "amd64" ]; then PD_ARCH="amd64"; else PD_ARCH="arm64"; fi; \
     echo "Using arch: $PD_ARCH"; \
     \
-    wget https://mirror.ghproxy.com/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip; \
+    wget https://gh-proxy.org/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip; \
     unzip -jq subfinder_2.6.6_linux_${PD_ARCH}.zip subfinder; \
     mv subfinder /usr/local/bin/; \
     \
-    wget https://mirror.ghproxy.com/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${PD_ARCH}.zip; \
+    wget https://gh-proxy.org/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${PD_ARCH}.zip; \
     unzip -jq httpx_1.6.0_linux_${PD_ARCH}.zip httpx; \
     mv httpx /usr/local/bin/; \
     \
-    wget https://mirror.ghproxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${PD_ARCH}.zip; \
+    wget https://gh-proxy.org/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${PD_ARCH}.zip; \
     unzip -jq nuclei_3.2.0_linux_${PD_ARCH}.zip nuclei; \
     mv nuclei /usr/local/bin/; \
     \
