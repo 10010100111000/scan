@@ -7,7 +7,7 @@ import sys
 API_URL = "http://localhost:8000/api/v1"
 # 请确保与 app/core/config.py 或初始化设置一致
 USERNAME = "admin"
-PASSWORD = "admin_password" 
+PASSWORD = "admin123" 
 
 def get_token():
     print("[*] 正在登录获取 Token...")
