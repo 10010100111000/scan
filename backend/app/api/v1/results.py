@@ -13,15 +13,30 @@ router = APIRouter()
 @router.get("/assets/{asset_id}/hosts", response_model=List[dict])
 async def get_asset_hosts(
     asset_id: int,
+    skip: int = 0,
+    limit: int = 100,
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """获取指定根资产下的所有子域名"""
-    stmt = select(models.Host).where(models.Host.root_asset_id == asset_id).order_by(models.Host.id.desc())
+    """获取指定根资产下的子域名，附带 IP 关联信息（分页）"""
+    stmt = (
+        select(models.Host)
+        .where(models.Host.root_asset_id == asset_id)
+        .options(selectinload(models.Host.ip_addresses))
+        .order_by(models.Host.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     hosts = result.scalars().all()
     return [
-        {"id": h.id, "hostname": h.hostname, "status": h.status, "created_at": h.created_at} 
+        {
+            "id": h.id,
+            "hostname": h.hostname,
+            "status": h.status,
+            "created_at": h.created_at,
+            "ips": [ip.ip_address for ip in (h.ip_addresses or [])]
+        }
         for h in hosts
     ]
 
@@ -32,9 +47,14 @@ async def get_asset_ports(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """获取开放端口 (关联查询)"""
-    # 简易实现：查询所有端口，实际应关联 asset_id
-    stmt = select(models.Port).options(selectinload(models.Port.ip_address)).limit(200)
+    """获取指定资产下的开放端口 (通过 IP -> Port 链路过滤)"""
+    stmt = (
+        select(models.Port)
+        .options(selectinload(models.Port.ip_address))
+        .join(models.IPAddress, models.Port.ip_address_id == models.IPAddress.id)
+        .where(models.IPAddress.root_asset_id == asset_id)
+        .limit(200)
+    )
     result = await db.execute(stmt)
     ports = result.scalars().all()
     
@@ -45,8 +65,7 @@ async def get_asset_ports(
                 "id": p.id,
                 "ip": p.ip_address.ip_address,
                 "port": p.port_number,
-                "service": p.service_name,
-                "banner": p.product
+                "service": p.service_name
             })
     return data
 
@@ -57,7 +76,13 @@ async def get_asset_web(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    stmt = select(models.HTTPService).limit(100)
+    stmt = (
+        select(models.HTTPService)
+        .join(models.Port, models.HTTPService.port_id == models.Port.id)
+        .join(models.IPAddress, models.Port.ip_address_id == models.IPAddress.id)
+        .where(models.IPAddress.root_asset_id == asset_id)
+        .limit(100)
+    )
     result = await db.execute(stmt)
     services = result.scalars().all()
     return [
@@ -72,7 +97,18 @@ async def get_asset_vulns(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    stmt = select(models.Vulnerability).limit(100)
+    stmt = (
+        select(models.Vulnerability)
+        .join(models.HTTPService, models.Vulnerability.http_service_id == models.HTTPService.id, isouter=True)
+        .join(models.Port, models.HTTPService.port_id == models.Port.id, isouter=True)
+        .join(models.IPAddress, models.Port.ip_address_id == models.IPAddress.id, isouter=True)
+        .join(models.Host, models.Vulnerability.host_id == models.Host.id, isouter=True)
+        .where(
+            (models.IPAddress.root_asset_id == asset_id) |
+            (models.Host.root_asset_id == asset_id)
+        )
+        .limit(100)
+    )
     result = await db.execute(stmt)
     vulns = result.scalars().all()
     return [

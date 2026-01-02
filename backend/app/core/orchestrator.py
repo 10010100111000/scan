@@ -96,18 +96,67 @@ async def run_scan_task_logic(task_id: int):
             #    Subfinder 默认查询被动源，不直接发包给目标，非常适合前期侦察
             if agent_type == "subdomain":
                 async for res in parser.parse(stdout, data_mapping):
-                    hostname = res.get("hostname")
-                    if hostname:
-                        # 检查是否存在
-                        existing = await db.execute(select(models.Host).where(models.Host.hostname == hostname))
-                        if not existing.scalars().first():
-                            new_host = models.Host(
-                                hostname=hostname,
+                    hostname_raw = res.get("hostname")
+                    # 规范化：统一小写，去掉末尾的点号
+                    hostname = hostname_raw.lower().rstrip(".") if hostname_raw else None
+                    record_type = res.get("record_type") or "A"
+                    ip_value = res.get("ip")
+
+                    if not hostname:
+                        continue
+
+                    # --- Host 去重 ---
+                    existing = await db.execute(select(models.Host).where(models.Host.hostname == hostname))
+                    host_obj = existing.scalars().first()
+                    if not host_obj:
+                        host_obj = models.Host(
+                            hostname=hostname,
+                            organization_id=asset.organization_id,
+                            root_asset_id=asset.id,
+                            status="discovered"
+                        )
+                        db.add(host_obj)
+                        await db.flush()
+                        results_count += 1
+
+                    # --- 原始结果存档 ---
+                    raw = models.RawScanResult(
+                        scan_task_id=task.id,
+                        data=res
+                    )
+                    db.add(raw)
+                    results_count += 1
+
+                    # --- DNS/IP 关联 (如果解析到 IP) ---
+                    if ip_value:
+                        existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip_value))
+                        ip_obj = existing_ip.scalars().first()
+                        if not ip_obj:
+                            ip_obj = models.IPAddress(
+                                ip_address=ip_value,
                                 organization_id=asset.organization_id,
                                 root_asset_id=asset.id,
                                 status="discovered"
                             )
-                            db.add(new_host)
+                            db.add(ip_obj)
+                            await db.flush()
+                            results_count += 1
+
+                        # 建立 DNS 记录关联（多对多）
+                        dns_exists = await db.execute(
+                            select(models.DNSRecord).where(
+                                models.DNSRecord.host_id == host_obj.id,
+                                models.DNSRecord.ip_address_id == ip_obj.id,
+                                models.DNSRecord.record_type == record_type
+                            )
+                        )
+                        if not dns_exists.scalars().first():
+                            dns = models.DNSRecord(
+                                host_id=host_obj.id,
+                                ip_address_id=ip_obj.id,
+                                record_type=record_type
+                            )
+                            db.add(dns)
                             results_count += 1
 
             # B. 端口扫描 (Nmap) - [主动扫描阶段]
@@ -122,9 +171,14 @@ async def run_scan_task_logic(task_id: int):
                         # 1. 确保 IP 存在 (如果不存在则创建)
                         existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip))
                         db_ip = existing_ip.scalars().first()
-                        
+
                         if not db_ip:
-                            db_ip = models.IPAddress(ip_address=ip, status="discovered")
+                            db_ip = models.IPAddress(
+                                ip_address=ip,
+                                organization_id=asset.organization_id,
+                                root_asset_id=asset.id,
+                                status="discovered"
+                            )
                             db.add(db_ip)
                             await db.flush() # 立即获取 ID
                         
@@ -168,9 +222,14 @@ async def run_scan_task_logic(task_id: int):
                             existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip))
                             db_ip = existing_ip.scalars().first()
                             if not db_ip:
-                                db_ip = models.IPAddress(ip_address=ip, status="discovered")
-                                db.add(db_ip)
-                                await db.flush()
+                            db_ip = models.IPAddress(
+                                ip_address=ip,
+                                organization_id=asset.organization_id,
+                                root_asset_id=asset.id,
+                                status="discovered"
+                            )
+                            db.add(db_ip)
+                            await db.flush()
                             db_ip_id = db_ip.id
 
                         # 2. 查找或创建 Port (如果有关联 IP)
