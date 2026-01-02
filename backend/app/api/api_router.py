@@ -4,9 +4,7 @@ API v1 的主路由器
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth
-from app.api.v1 import organizations
-from app.api.v1 import assets
+from app.api.v1 import auth, organizations, assets, tasks, results
 
 api_router = APIRouter()
 
