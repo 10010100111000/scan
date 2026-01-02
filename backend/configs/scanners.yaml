@@ -31,7 +31,8 @@
   agent_type: "http"
   # -sc: 状态码, -title: 标题, -ip: 显示IP, -json: JSON输出
   # echo {target} | ... 是因为 httpx 接收 stdin 输入
-  command_template: "echo {target} | httpx -sc -title -ip -json -silent"
+  # 增强：favicon 哈希、TLS 抓取、技术指纹
+  command_template: "echo {target} | httpx -sc -title -ip -json -silent -favicon -tls-grab -tech-detect"
   output_parser_type: "json_lines"
   data_mapping:
     url: "url"
@@ -42,6 +43,8 @@
     # *** 关键字段 ***
     ip: "host"               # httpx json 中的 host 字段通常是解析后的 IP
     port: "port"             # httpx json 中的 port 字段
+    favicon_hash: "favicon_hash"  # MurmurHash3
+    ssl_info: "tls"               # TLS 抓取信息
 
 # --- 4. 漏洞扫描 (Nuclei) ---
 - config_name: "Nuclei (高危漏洞)"

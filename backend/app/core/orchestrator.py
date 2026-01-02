@@ -89,6 +89,7 @@ async def run_scan_task_logic(task_id: int):
             
             parser = parser_class()
             results_count = 0
+            processed_count = 0
             
             # --- 核心数据处理分支 ---
             
@@ -96,6 +97,7 @@ async def run_scan_task_logic(task_id: int):
             #    Subfinder 默认查询被动源，不直接发包给目标，非常适合前期侦察
             if agent_type == "subdomain":
                 async for res in parser.parse(stdout, data_mapping):
+                    processed_count += 1
                     # Subfinder 常见字段: host / ip / ips / type
                     hostname_raw = res.get("hostname") or res.get("host") or res.get("target")
                     hostname = hostname_raw.lower().rstrip(".") if hostname_raw else None
@@ -179,6 +181,7 @@ async def run_scan_task_logic(task_id: int):
             #    Nmap 会直接向目标 IP 发送 TCP SYN 包，属于主动交互
             elif agent_type == "portscan":
                 async for res in parser.parse(stdout, data_mapping):
+                    processed_count += 1
                     ip = res.get("ip")
                     port_num = res.get("port")
                     service = res.get("service")
@@ -218,6 +221,7 @@ async def run_scan_task_logic(task_id: int):
             #    httpx 发送 HTTP 请求来获取 Title 和 Tech 指纹，是 Web 安全的核心步骤
             elif agent_type == "http":
                 async for res in parser.parse(stdout, data_mapping):
+                    processed_count += 1
                     url = res.get("url")
                     ip = res.get("ip")
                     port_val = res.get("port")
@@ -281,7 +285,9 @@ async def run_scan_task_logic(task_id: int):
                                     title=res.get("title"),
                                     status_code=res.get("status_code"),
                                     tech=res.get("tech"),
-                                    response_headers=res.get("web_server")
+                                    response_headers=res.get("web_server"),
+                                    favicon_hash=res.get("favicon_hash"),
+                                    ssl_info=res.get("ssl_info")
                                 )
                                 db.add(new_svc)
                                 results_count += 1
@@ -290,6 +296,7 @@ async def run_scan_task_logic(task_id: int):
             #    Nuclei 发送 Payload 验证漏洞，是攻击性最强的步骤
             elif agent_type == "vulnerability":
                 async for res in parser.parse(stdout, data_mapping):
+                    processed_count += 1
                     vuln_name = res.get("vulnerability_name")
                     severity = res.get("severity")
                     matched_url = res.get("url")
@@ -314,7 +321,7 @@ async def run_scan_task_logic(task_id: int):
             
             task.status = "completed"
             task.completed_at = datetime.now(timezone.utc)
-            task.log = f"扫描完成，新增 {results_count} 条数据。"
+            task.log = f"扫描完成，处理 {processed_count} 条，新增 {results_count} 条数据。"
             await db.commit()
             print(f"[任务 {task_id}] 完成。新增数据: {results_count}")
 
