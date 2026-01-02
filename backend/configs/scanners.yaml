@@ -57,6 +57,18 @@
     template_id: "template-id"
     url: "matched-at"
 
+# --- 5. 端口扫描 (naabu 快速) ---
+- config_name: "naabu (快速端口扫描)"
+  agent_type: "portscan"
+  # 快速端口探测，输出 JSONL
+  command_template: "echo {target} | naabu -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    ip: "ip"
+    port: "port"
+    service: "service"
+    host: "host"
+
 # --- 5. DNS 解析 (dnsx) ---
 - config_name: "dnsx (解析验证)"
   agent_type: "subdomain"

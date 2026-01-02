@@ -35,6 +35,10 @@ RUN set -eux; \
     unzip -jq subfinder_2.6.6_linux_${PD_ARCH}.zip subfinder; \
     mv subfinder /usr/local/bin/; \
     \
+    wget https://gh-proxy.org/https://github.com/projectdiscovery/naabu/releases/download/v2.3.1/naabu_2.3.1_linux_${PD_ARCH}.zip; \
+    unzip -jq naabu_2.3.1_linux_${PD_ARCH}.zip naabu; \
+    mv naabu /usr/local/bin/; \
+    \
     wget https://gh-proxy.org/https://github.com/projectdiscovery/dnsx/releases/download/v1.2.1/dnsx_1.2.1_linux_${PD_ARCH}.zip; \
     unzip -jq dnsx_1.2.1_linux_${PD_ARCH}.zip dnsx; \
     mv dnsx /usr/local/bin/; \
