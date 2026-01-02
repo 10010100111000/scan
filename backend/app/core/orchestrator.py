@@ -242,14 +242,14 @@ async def run_scan_task_logic(task_id: int):
                             existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip))
                             db_ip = existing_ip.scalars().first()
                             if not db_ip:
-                                db_ip = models.IPAddress(
-                                    ip_address=ip,
-                                    organization_id=asset.organization_id,
-                                    root_asset_id=asset.id,
-                                    status="discovered"
-                                )
-                                db.add(db_ip)
-                                await db.flush()
+                            db_ip = models.IPAddress(
+                                ip_address=ip,
+                                organization_id=asset.organization_id,
+                                root_asset_id=asset.id,
+                                status="discovered"
+                            )
+                            db.add(db_ip)
+                            await db.flush()
                             db_ip_id = db_ip.id
 
                         # 2. 查找或创建 Port (如果有关联 IP)
