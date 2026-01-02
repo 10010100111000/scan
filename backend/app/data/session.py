@@ -7,14 +7,16 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 # 1. 数据库连接字符串
-# 逻辑: 优先读取环境变量 DATABASE_URL。
-# 如果没有 (比如你在本地直接运行 python main.py), 则使用默认的 localhost 配置。
-# 格式: postgresql+asyncpg://用户名:密码@主机:端口/数据库名
-# 注意: 生产环境中密码不应硬编码, 这里仅为演示便利。
-DEFAULT_DB_URL = "postgresql+asyncpg://pentest_user:kali@localhost:5432/pentest_db"
+# 优先读取环境变量 DATABASE_URL；若未设置，优先使用 Docker Compose 的 db 主机，
+# 再回退本地 localhost，避免容器默认连到不存在的本地数据库。
+DOCKER_DEFAULT_DB_URL = "postgresql+asyncpg://pentest_user:kali@db:5432/pentest_db"
+LOCAL_DEFAULT_DB_URL = "postgresql+asyncpg://pentest_user:kali@localhost:5432/pentest_db"
 
-# Docker Compose 会注入 DATABASE_URL=postgresql+asyncpg://pentest_user:kali@db:5432/pentest_db
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
+DATABASE_URL = (
+    os.getenv("DATABASE_URL")
+    or DOCKER_DEFAULT_DB_URL
+    or LOCAL_DEFAULT_DB_URL
+)
 
 # 2. 创建异步引擎
 # echo=True 会在控制台打印所有 SQL 语句, 方便调试 (生产环境建议设为 False)

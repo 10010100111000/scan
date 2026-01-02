@@ -89,6 +89,7 @@ async def run_scan_task_logic(task_id: int):
             
             parser = parser_class()
             results_count = 0
+            processed_count = 0
             
             # --- 核心数据处理分支 ---
             
@@ -96,24 +97,91 @@ async def run_scan_task_logic(task_id: int):
             #    Subfinder 默认查询被动源，不直接发包给目标，非常适合前期侦察
             if agent_type == "subdomain":
                 async for res in parser.parse(stdout, data_mapping):
-                    hostname = res.get("hostname")
-                    if hostname:
-                        # 检查是否存在
-                        existing = await db.execute(select(models.Host).where(models.Host.hostname == hostname))
-                        if not existing.scalars().first():
-                            new_host = models.Host(
-                                hostname=hostname,
+                    processed_count += 1
+                    # Subfinder 常见字段: host / ip / ips / type
+                    hostname_raw = res.get("hostname") or res.get("host") or res.get("target")
+                    hostname = hostname_raw.lower().rstrip(".") if hostname_raw else None
+                    record_type = res.get("record_type") or res.get("type") or "A"
+                    # 支持单个 ip 或 ips 列表
+                    ip_values_raw = res.get("ips") or []
+                    ip_single = res.get("ip")
+                    ip_values = set()
+                    # 支持字符串或列表
+                    if ip_single:
+                        if isinstance(ip_single, list):
+                            ip_values.update([ip for ip in ip_single if ip])
+                        else:
+                            ip_values.add(ip_single)
+                    if isinstance(ip_values_raw, list):
+                        ip_values.update([ip for ip in ip_values_raw if ip])
+
+                    if not hostname:
+                        continue
+
+                    # --- Host 去重 ---
+                    existing = await db.execute(select(models.Host).where(models.Host.hostname == hostname))
+                    host_obj = existing.scalars().first()
+                    host_created = False
+                    if not host_obj:
+                        host_obj = models.Host(
+                            hostname=hostname,
+                            organization_id=asset.organization_id,
+                            root_asset_id=asset.id,
+                            status="discovered"
+                        )
+                        db.add(host_obj)
+                        await db.flush()
+                        host_created = True
+
+                    # --- 原始结果存档 ---
+                    raw = models.RawScanResult(
+                        scan_task_id=task.id,
+                        data=res
+                    )
+                    db.add(raw)
+
+                    # --- DNS/IP 关联 (如果解析到 IP) ---
+                    dns_new = 0
+                    ip_new = 0
+                    for ip_value in ip_values:
+                        existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip_value))
+                        ip_obj = existing_ip.scalars().first()
+                        if not ip_obj:
+                            ip_obj = models.IPAddress(
+                                ip_address=ip_value,
                                 organization_id=asset.organization_id,
                                 root_asset_id=asset.id,
                                 status="discovered"
                             )
-                            db.add(new_host)
-                            results_count += 1
+                            db.add(ip_obj)
+                            await db.flush()
+                            ip_new += 1
+
+                        # 建立 DNS 记录关联（多对多）
+                        dns_exists = await db.execute(
+                            select(models.DNSRecord).where(
+                                models.DNSRecord.host_id == host_obj.id,
+                                models.DNSRecord.ip_address_id == ip_obj.id,
+                                models.DNSRecord.record_type == record_type
+                            )
+                        )
+                        if not dns_exists.scalars().first():
+                            dns = models.DNSRecord(
+                                host_id=host_obj.id,
+                                ip_address_id=ip_obj.id,
+                                record_type=record_type
+                            )
+                            db.add(dns)
+                            dns_new += 1
+
+                    # 统计真正新增的实体数量
+                    results_count += (1 if host_created else 0) + ip_new + dns_new
 
             # B. 端口扫描 (Nmap) - [主动扫描阶段]
             #    Nmap 会直接向目标 IP 发送 TCP SYN 包，属于主动交互
             elif agent_type == "portscan":
                 async for res in parser.parse(stdout, data_mapping):
+                    processed_count += 1
                     ip = res.get("ip")
                     port_num = res.get("port")
                     service = res.get("service")
@@ -122,9 +190,14 @@ async def run_scan_task_logic(task_id: int):
                         # 1. 确保 IP 存在 (如果不存在则创建)
                         existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip))
                         db_ip = existing_ip.scalars().first()
-                        
+
                         if not db_ip:
-                            db_ip = models.IPAddress(ip_address=ip, status="discovered")
+                            db_ip = models.IPAddress(
+                                ip_address=ip,
+                                organization_id=asset.organization_id,
+                                root_asset_id=asset.id,
+                                status="discovered"
+                            )
                             db.add(db_ip)
                             await db.flush() # 立即获取 ID
                         
@@ -148,6 +221,7 @@ async def run_scan_task_logic(task_id: int):
             #    httpx 发送 HTTP 请求来获取 Title 和 Tech 指纹，是 Web 安全的核心步骤
             elif agent_type == "http":
                 async for res in parser.parse(stdout, data_mapping):
+                    processed_count += 1
                     url = res.get("url")
                     ip = res.get("ip")
                     port_val = res.get("port")
@@ -168,7 +242,12 @@ async def run_scan_task_logic(task_id: int):
                             existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip))
                             db_ip = existing_ip.scalars().first()
                             if not db_ip:
-                                db_ip = models.IPAddress(ip_address=ip, status="discovered")
+                                db_ip = models.IPAddress(
+                                    ip_address=ip,
+                                    organization_id=asset.organization_id,
+                                    root_asset_id=asset.id,
+                                    status="discovered"
+                                )
                                 db.add(db_ip)
                                 await db.flush()
                             db_ip_id = db_ip.id
@@ -206,7 +285,9 @@ async def run_scan_task_logic(task_id: int):
                                     title=res.get("title"),
                                     status_code=res.get("status_code"),
                                     tech=res.get("tech"),
-                                    response_headers=res.get("web_server")
+                                    response_headers=res.get("web_server"),
+                                    favicon_hash=res.get("favicon_hash"),
+                                    ssl_info=res.get("ssl_info")
                                 )
                                 db.add(new_svc)
                                 results_count += 1
@@ -215,6 +296,7 @@ async def run_scan_task_logic(task_id: int):
             #    Nuclei 发送 Payload 验证漏洞，是攻击性最强的步骤
             elif agent_type == "vulnerability":
                 async for res in parser.parse(stdout, data_mapping):
+                    processed_count += 1
                     vuln_name = res.get("vulnerability_name")
                     severity = res.get("severity")
                     matched_url = res.get("url")
@@ -239,7 +321,7 @@ async def run_scan_task_logic(task_id: int):
             
             task.status = "completed"
             task.completed_at = datetime.now(timezone.utc)
-            task.log = f"扫描完成，新增 {results_count} 条数据。"
+            task.log = f"扫描完成，处理 {processed_count} 条，新增 {results_count} 条数据。"
             await db.commit()
             print(f"[任务 {task_id}] 完成。新增数据: {results_count}")
 
