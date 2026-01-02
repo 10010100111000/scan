@@ -104,8 +104,12 @@ async def run_scan_task_logic(task_id: int):
                     ip_values_raw = res.get("ips") or []
                     ip_single = res.get("ip")
                     ip_values = set()
+                    # 支持字符串或列表
                     if ip_single:
-                        ip_values.add(ip_single)
+                        if isinstance(ip_single, list):
+                            ip_values.update([ip for ip in ip_single if ip])
+                        else:
+                            ip_values.add(ip_single)
                     if isinstance(ip_values_raw, list):
                         ip_values.update([ip for ip in ip_values_raw if ip])
 

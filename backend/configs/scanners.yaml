@@ -56,3 +56,25 @@
     matched_at: "matched-at"
     template_id: "template-id"
     url: "matched-at"
+
+# --- 5. DNS 解析 (dnsx) ---
+- config_name: "dnsx (解析验证)"
+  agent_type: "subdomain"
+  # 对域名执行解析，补充 A/CNAME -> IP 记录
+  command_template: "echo {target} | dnsx -resp -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    hostname: "input"     # 输入的域名
+    ip: "a"               # A 记录列表
+    record_type: "type"   # 记录类型
+
+# --- 6. 反向 DNS (dnsx ptr) ---
+- config_name: "dnsx (PTR 反查)"
+  agent_type: "subdomain"
+  # 对 IP 进行 PTR 查询，发现指向的域名
+  command_template: "echo {target} | dnsx -ptr -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    hostname: "ptr"       # PTR 结果
+    ip: "host"            # 原始 IP
+    record_type: "type"   # PTR
