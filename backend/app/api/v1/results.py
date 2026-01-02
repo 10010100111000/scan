@@ -1,5 +1,5 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -9,36 +9,54 @@ from app.data import models
 
 router = APIRouter()
 
-# --- 1. 获取子域名 (Hosts) ---
-@router.get("/assets/{asset_id}/hosts", response_model=List[dict])
+# --- 1. 获取子域名 (Hosts) - Cursor Based Pagination ---
+@router.get("/assets/{asset_id}/hosts", response_model=Dict[str, Any])
 async def get_asset_hosts(
     asset_id: int,
-    skip: int = 0,
-    limit: int = 100,
+    limit: int = Query(100, ge=1, le=1000),
+    cursor: Optional[int] = Query(None, description="Cursor for pagination (last seen host id)."),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """获取指定根资产下的子域名，附带 IP 关联信息（分页）"""
+    """
+    获取指定根资产下的子域名，支持基于 id 的游标分页（按 id 降序）。
+    适用于大量数据的高性能查询。
+    """
+    real_limit = min(limit, 1000)
+
     stmt = (
         select(models.Host)
         .where(models.Host.root_asset_id == asset_id)
         .options(selectinload(models.Host.ip_addresses))
-        .order_by(models.Host.id.desc())
-        .offset(skip)
-        .limit(limit)
     )
+
+    if cursor:
+        stmt = stmt.where(models.Host.id < cursor)
+
+    stmt = stmt.order_by(models.Host.id.desc()).limit(real_limit + 1)
+
     result = await db.execute(stmt)
     hosts = result.scalars().all()
-    return [
-        {
-            "id": h.id,
-            "hostname": h.hostname,
-            "status": h.status,
-            "created_at": h.created_at,
-            "ips": [ip.ip_address for ip in (h.ip_addresses or [])]
-        }
-        for h in hosts
-    ]
+
+    has_more = len(hosts) > real_limit
+    items = hosts[:real_limit]
+    next_cursor = items[-1].id if has_more and items else None
+
+    return {
+        "items": [
+            {
+                "id": h.id,
+                "hostname": h.hostname,
+                "status": h.status,
+                "created_at": h.created_at,
+                "ips": [ip.ip_address for ip in (h.ip_addresses or [])]
+            }
+            for h in items
+        ],
+        "next_cursor": next_cursor,
+        "has_more": has_more,
+        "limit": real_limit,
+    }
 
 # --- 2. 获取 IP 和 端口 (Ports) ---
 @router.get("/assets/{asset_id}/ports", response_model=List[dict])
