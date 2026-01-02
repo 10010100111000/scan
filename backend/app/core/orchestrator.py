@@ -96,11 +96,18 @@ async def run_scan_task_logic(task_id: int):
             #    Subfinder 默认查询被动源，不直接发包给目标，非常适合前期侦察
             if agent_type == "subdomain":
                 async for res in parser.parse(stdout, data_mapping):
-                    hostname_raw = res.get("hostname")
-                    # 规范化：统一小写，去掉末尾的点号
+                    # Subfinder 常见字段: host / ip / ips / type
+                    hostname_raw = res.get("hostname") or res.get("host") or res.get("target")
                     hostname = hostname_raw.lower().rstrip(".") if hostname_raw else None
-                    record_type = res.get("record_type") or "A"
-                    ip_value = res.get("ip")
+                    record_type = res.get("record_type") or res.get("type") or "A"
+                    # 支持单个 ip 或 ips 列表
+                    ip_values_raw = res.get("ips") or []
+                    ip_single = res.get("ip")
+                    ip_values = set()
+                    if ip_single:
+                        ip_values.add(ip_single)
+                    if isinstance(ip_values_raw, list):
+                        ip_values.update([ip for ip in ip_values_raw if ip])
 
                     if not hostname:
                         continue
@@ -108,6 +115,7 @@ async def run_scan_task_logic(task_id: int):
                     # --- Host 去重 ---
                     existing = await db.execute(select(models.Host).where(models.Host.hostname == hostname))
                     host_obj = existing.scalars().first()
+                    host_created = False
                     if not host_obj:
                         host_obj = models.Host(
                             hostname=hostname,
@@ -117,7 +125,7 @@ async def run_scan_task_logic(task_id: int):
                         )
                         db.add(host_obj)
                         await db.flush()
-                        results_count += 1
+                        host_created = True
 
                     # --- 原始结果存档 ---
                     raw = models.RawScanResult(
@@ -125,10 +133,11 @@ async def run_scan_task_logic(task_id: int):
                         data=res
                     )
                     db.add(raw)
-                    results_count += 1
 
                     # --- DNS/IP 关联 (如果解析到 IP) ---
-                    if ip_value:
+                    dns_new = 0
+                    ip_new = 0
+                    for ip_value in ip_values:
                         existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip_value))
                         ip_obj = existing_ip.scalars().first()
                         if not ip_obj:
@@ -140,7 +149,7 @@ async def run_scan_task_logic(task_id: int):
                             )
                             db.add(ip_obj)
                             await db.flush()
-                            results_count += 1
+                            ip_new += 1
 
                         # 建立 DNS 记录关联（多对多）
                         dns_exists = await db.execute(
@@ -157,7 +166,10 @@ async def run_scan_task_logic(task_id: int):
                                 record_type=record_type
                             )
                             db.add(dns)
-                            results_count += 1
+                            dns_new += 1
+
+                    # 统计真正新增的实体数量
+                    results_count += (1 if host_created else 0) + ip_new + dns_new
 
             # B. 端口扫描 (Nmap) - [主动扫描阶段]
             #    Nmap 会直接向目标 IP 发送 TCP SYN 包，属于主动交互
