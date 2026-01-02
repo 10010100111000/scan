@@ -31,7 +31,8 @@
   agent_type: "http"
   # -sc: 状态码, -title: 标题, -ip: 显示IP, -json: JSON输出
   # echo {target} | ... 是因为 httpx 接收 stdin 输入
-  command_template: "echo {target} | httpx -sc -title -ip -json -silent"
+  # 增强：favicon 哈希、TLS 抓取、技术指纹
+  command_template: "echo {target} | httpx -sc -title -ip -json -silent -favicon -tls-grab -tech-detect"
   output_parser_type: "json_lines"
   data_mapping:
     url: "url"
@@ -42,6 +43,8 @@
     # *** 关键字段 ***
     ip: "host"               # httpx json 中的 host 字段通常是解析后的 IP
     port: "port"             # httpx json 中的 port 字段
+    favicon_hash: "favicon_hash"  # MurmurHash3
+    ssl_info: "tls"               # TLS 抓取信息
 
 # --- 4. 漏洞扫描 (Nuclei) ---
 - config_name: "Nuclei (高危漏洞)"
@@ -56,3 +59,37 @@
     matched_at: "matched-at"
     template_id: "template-id"
     url: "matched-at"
+
+# --- 5. 端口扫描 (naabu 快速) ---
+- config_name: "naabu (快速端口扫描)"
+  agent_type: "portscan"
+  # 快速端口探测，输出 JSONL
+  command_template: "echo {target} | naabu -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    ip: "ip"
+    port: "port"
+    service: "service"
+    host: "host"
+
+# --- 5. DNS 解析 (dnsx) ---
+- config_name: "dnsx (解析验证)"
+  agent_type: "subdomain"
+  # 对域名执行解析，补充 A/CNAME -> IP 记录
+  command_template: "echo {target} | dnsx -resp -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    hostname: "input"     # 输入的域名
+    ip: "a"               # A 记录列表
+    record_type: "type"   # 记录类型
+
+# --- 6. 反向 DNS (dnsx ptr) ---
+- config_name: "dnsx (PTR 反查)"
+  agent_type: "subdomain"
+  # 对 IP 进行 PTR 查询，发现指向的域名
+  command_template: "echo {target} | dnsx -ptr -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    hostname: "ptr"       # PTR 结果
+    ip: "host"            # 原始 IP
+    record_type: "type"   # PTR

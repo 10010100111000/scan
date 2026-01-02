@@ -40,6 +40,7 @@ class Organization(Base):
     # --- 关系 ---
     assets = relationship("Asset", back_populates="organization", cascade="all, delete-orphan")
     hosts = relationship("Host", back_populates="organization", cascade="all, delete-orphan")
+    ip_addresses = relationship("IPAddress", back_populates="organization", cascade="all, delete-orphan")
     generic_findings = relationship("GenericFinding", back_populates="organization", cascade="all, delete-orphan")
 
 
@@ -55,6 +56,7 @@ class Asset(Base):
     # --- 关系 ---
     organization = relationship("Organization", back_populates="assets")
     hosts = relationship("Host", back_populates="root_asset", cascade="all, delete-orphan")
+    ip_addresses = relationship("IPAddress", back_populates="root_asset", cascade="all, delete-orphan")
     scan_tasks = relationship("ScanTask", back_populates="asset", cascade="all, delete-orphan")
 
 
@@ -73,6 +75,8 @@ class IPAddress(Base):
     __tablename__ = "ip_addresses"
     id = Column(Integer, primary_key=True, index=True)
     ip_address = Column(String, unique=True, nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+    root_asset_id = Column(Integer, ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True)
     geolocation = Column(JSON, nullable=True)
     vendor = Column(String, nullable=True)
     # --- 新增 ASN 字段 ---
@@ -89,6 +93,8 @@ class IPAddress(Base):
     ports = relationship("Port", back_populates="ip_address", cascade="all, delete-orphan")
     hosts = relationship("Host", secondary="dns_records", back_populates="ip_addresses") # 多对多
     tags = relationship("Tag", secondary=ipaddress_tags_association) # IP 的标签关系
+    organization = relationship("Organization", back_populates="ip_addresses")
+    root_asset = relationship("Asset", back_populates="ip_addresses")
 
 
 class Host(Base):

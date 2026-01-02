@@ -1,5 +1,6 @@
 # backend/main.py
 
+import asyncio
 from fastapi import FastAPI
 from app.data.session import engine
 from app.data.base import Base
@@ -19,9 +20,23 @@ app = FastAPI(
 @app.on_event("startup")
 async def on_startup():
     print("FastAPI 启动中，正在尝试连接数据库并创建表...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("数据库表检查/创建完毕。")
+    # 简单重试，防止数据库尚未就绪时立即报错
+    retry = 0
+    last_err = None
+    while retry < 5:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            print("数据库表检查/创建完毕。")
+            break
+        except Exception as e:
+            last_err = e
+            retry += 1
+            wait = 2 * retry
+            print(f"数据库尚未就绪，{wait}s 后重试 ({retry}/5)... 错误: {e}")
+            await asyncio.sleep(wait)
+    else:
+        raise last_err
 
 # --- 新增：定义一个“关闭”事件 ---
 @app.on_event("shutdown")
