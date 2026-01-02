@@ -17,6 +17,10 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 
 # 3. *** 新增：包含“资产”路由 ***
-#    注意: 我们把 assets 路由挂载在根上, API 路径中包含了 org_id
-#    例如 POST /api/v1/orgs/1/assets
-api_router.include_router(assets.router, tags=["Assets"]) # 修改 tag 名
+api_router.include_router(assets.router, prefix="/assets", tags=["assets"])
+# --- 新增 ---
+# 任务状态查询
+api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
+
+# 结果数据查询
+api_router.include_router(results.router, prefix="/results", tags=["results"])
