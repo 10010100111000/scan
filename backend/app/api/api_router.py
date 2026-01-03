@@ -4,7 +4,7 @@ API v1 的主路由器
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, organizations, assets, tasks, results, users
+from app.api.v1 import auth, projects, assets, tasks, results, users
 
 api_router = APIRouter()
 
@@ -14,11 +14,11 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 # 用户信息
 api_router.include_router(users.router, prefix="/user", tags=["user"])
 
-# 2. 包含“组织”路由 ( /organizations )
-api_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
+# 2. 包含“项目”路由 ( /projects )
+api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 
 # 3. *** 新增：包含“资产”路由 ***
-api_router.include_router(assets.router, prefix="/assets", tags=["assets"])
+api_router.include_router(assets.router, tags=["assets"])
 # --- 新增 ---
 # 任务状态查询
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
