@@ -308,16 +308,3 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
-
-
-class ForgotPasswordRequest(BaseModel):
-    username: str = Field(..., description="登录用户名")
-    email: Optional[str] = Field(None, description="联系邮箱，便于管理员跟进")
-
-
-class AuthStatus(BaseModel):
-    first_run: bool = Field(..., description="是否首次运行（尚未初始化管理员）")
-
-
-class Message(BaseModel):
-    detail: str

@@ -23,21 +23,6 @@ export const login = async (username, password) => {
   return res.data;
 };
 
-export const registerAdmin = async (payload) => {
-  const res = await api.post("/api/v1/auth/setup", payload);
-  return res.data;
-};
-
-export const forgotPassword = async (payload) => {
-  const res = await api.post("/api/v1/auth/forgot", payload);
-  return res.data;
-};
-
-export const fetchAuthStatus = async () => {
-  const res = await api.get("/api/v1/auth/status");
-  return res.data;
-};
-
 export const createOrganization = async (name) => {
   const res = await api.post("/api/v1/orgs/organizations", { name });
   return res.data;
