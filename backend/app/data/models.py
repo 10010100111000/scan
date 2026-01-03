@@ -3,7 +3,7 @@
 定义数据库的所有表模型 (最终版本，包含完整的标签支持 + Favicon Hash + ASN信息)
 """
 from sqlalchemy import (
-    Column, Integer, String, DateTime, func, Boolean, ForeignKey, Text, JSON, Enum, Table
+    Column, Integer, String, DateTime, func, Boolean, ForeignKey, Text, JSON, Enum, Table, UniqueConstraint
 )
 from sqlalchemy.orm import relationship # 用于定义表之间的关系
 
@@ -47,6 +47,10 @@ class Organization(Base):
 class Asset(Base):
     """根资产 (用户输入的初始目标)"""
     __tablename__ = "assets"
+    __table_args__ = (
+        # 同一组织下的资产名称保持唯一，避免重复扫描和数据污染
+        UniqueConstraint("organization_id", "name", name="uq_asset_org_name"),
+    )
     id = Column(Integer, primary_key=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     name = Column(String, nullable=False, index=True) # e.g., "example.com" or "1.2.3.0/24"

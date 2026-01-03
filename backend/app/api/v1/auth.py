@@ -19,6 +19,15 @@ from app.userManage.security import (
 #    这就像一个“迷你”的 FastAPI app
 router = APIRouter()
 
+@router.get("/status", response_model=dict)
+async def get_auth_status(
+    is_first_run: bool = Depends(deps.check_first_run),
+):
+    """
+    返回认证状态，用于前端判断是否需要展示管理员注册入口。
+    """
+    return {"first_run": is_first_run}
+
 @router.post("/setup", response_model=schemas.UserRead)
 async def setup_admin_user(
     admin_in: schemas.AdminCreate,
@@ -65,3 +74,16 @@ async def login_for_access_token(
         )
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/forgot", response_model=dict)
+async def forgot_password(
+    payload: schemas.ForgotPasswordRequest,
+    is_first_run: bool = Depends(deps.check_first_run),
+):
+    """
+    忘记密码占位接口。当前未启用邮件找回，只做温馨提示。
+    """
+    if is_first_run:
+        return {"detail": "平台尚未初始化管理员，请先注册管理员账号"}
+    return {"detail": "暂未开放自助重置密码，请联系管理员处理"}
