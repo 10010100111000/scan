@@ -30,35 +30,35 @@ ipaddress_tags_association = Table(
 
 # --- 核心资产模型 (80/20 混合模型) ---
 
-class Organization(Base):
-    """组织/项目"""
-    __tablename__ = "organizations"
+class Project(Base):
+    """项目"""
+    __tablename__ = "projects"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # --- 关系 ---
-    assets = relationship("Asset", back_populates="organization", cascade="all, delete-orphan")
-    hosts = relationship("Host", back_populates="organization", cascade="all, delete-orphan")
-    ip_addresses = relationship("IPAddress", back_populates="organization", cascade="all, delete-orphan")
-    generic_findings = relationship("GenericFinding", back_populates="organization", cascade="all, delete-orphan")
+    assets = relationship("Asset", back_populates="project", cascade="all, delete-orphan")
+    hosts = relationship("Host", back_populates="project", cascade="all, delete-orphan")
+    ip_addresses = relationship("IPAddress", back_populates="project", cascade="all, delete-orphan")
+    generic_findings = relationship("GenericFinding", back_populates="project", cascade="all, delete-orphan")
 
 
 class Asset(Base):
     """根资产 (用户输入的初始目标)"""
     __tablename__ = "assets"
     __table_args__ = (
-        # 同一组织下的资产名称保持唯一，避免重复扫描和数据污染
-        UniqueConstraint("organization_id", "name", name="uq_asset_org_name"),
+        # 同一项目下的资产名称保持唯一，避免重复扫描和数据污染
+        UniqueConstraint("project_id", "name", name="uq_asset_project_name"),
     )
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     name = Column(String, nullable=False, index=True) # e.g., "example.com" or "1.2.3.0/24"
     type = Column(Enum("domain", "cidr", name="asset_type_enum"), nullable=False) # 枚举类型
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # --- 关系 ---
-    organization = relationship("Organization", back_populates="assets")
+    project = relationship("Project", back_populates="assets")
     hosts = relationship("Host", back_populates="root_asset", cascade="all, delete-orphan")
     ip_addresses = relationship("IPAddress", back_populates="root_asset", cascade="all, delete-orphan")
     scan_tasks = relationship("ScanTask", back_populates="asset", cascade="all, delete-orphan")
@@ -79,7 +79,7 @@ class IPAddress(Base):
     __tablename__ = "ip_addresses"
     id = Column(Integer, primary_key=True, index=True)
     ip_address = Column(String, unique=True, nullable=False, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     root_asset_id = Column(Integer, ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True)
     geolocation = Column(JSON, nullable=True)
     vendor = Column(String, nullable=True)
@@ -97,7 +97,7 @@ class IPAddress(Base):
     ports = relationship("Port", back_populates="ip_address", cascade="all, delete-orphan")
     hosts = relationship("Host", secondary="dns_records", back_populates="ip_addresses") # 多对多
     tags = relationship("Tag", secondary=ipaddress_tags_association) # IP 的标签关系
-    organization = relationship("Organization", back_populates="ip_addresses")
+    project = relationship("Project", back_populates="ip_addresses")
     root_asset = relationship("Asset", back_populates="ip_addresses")
 
 
@@ -105,7 +105,7 @@ class Host(Base):
     """主机名/域名资产"""
     __tablename__ = "hosts"
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False) # 归属
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False) # 归属
     root_asset_id = Column(Integer, ForeignKey("assets.id"), nullable=True) # 从哪个根资产发现的
     hostname = Column(String, unique=True, nullable=False, index=True)
     status = Column(Enum("discovered", "confirmed", "archived", "out_of_scope", name="host_status_enum"), default="discovered", nullable=False, index=True)
@@ -114,7 +114,7 @@ class Host(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # --- 关系 ---
-    organization = relationship("Organization", back_populates="hosts")
+    project = relationship("Project", back_populates="hosts")
     root_asset = relationship("Asset", back_populates="hosts")
     ip_addresses = relationship("IPAddress", secondary="dns_records", back_populates="hosts") # 多对多
     vulnerabilities = relationship("Vulnerability", back_populates="host", cascade="all, delete-orphan")
@@ -196,7 +196,7 @@ class GenericFinding(Base):
     """通用发现物 (万能表, 用于扩展)"""
     __tablename__ = "generic_findings"
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     related_asset_type = Column(String, nullable=True, index=True) # e.g., "host", "ip_address"
     related_asset_id = Column(Integer, nullable=True, index=True)
 
@@ -208,7 +208,7 @@ class GenericFinding(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # --- 关系 ---
-    organization = relationship("Organization", back_populates="generic_findings")
+    project = relationship("Project", back_populates="generic_findings")
 
 
 # --- 日志与 Triage 模型 ---

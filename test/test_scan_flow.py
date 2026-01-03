@@ -38,24 +38,24 @@ def run_test():
     # 1. 创建项目
     print("\n[*] 1. 创建测试项目...")
     project_payload = {"name": "毕业设计测试项目"}
-    resp = requests.post(f"{API_URL}/orgs/organizations", json=project_payload, headers=headers)
+    resp = requests.post(f"{API_URL}/projects", json=project_payload, headers=headers)
     
     if resp.status_code in [200, 201]:
-        org_id = resp.json()["id"]
-        print(f"[+] 项目创建成功, ID: {org_id}")
+        project_id = resp.json()["id"]
+        print(f"[+] 项目创建成功, ID: {project_id}")
     elif resp.status_code == 422:
         print(f"[-] 参数验证错误: {resp.text}")
         return
     else:
         print(f"[-] 项目可能已存在或创建失败: {resp.text}")
         # 尝试查询已存在的项目
-        # org_id = ...
+        # project_id = ...
         return
 
     # 2. 创建资产 (example.com)
     print("\n[*] 2. 创建根资产 (example.com)...")
     asset_payload = {"name": "example.com", "type": "domain"}
-    resp = requests.post(f"{API_URL}/orgs/{org_id}/assets", json=asset_payload, headers=headers)
+    resp = requests.post(f"{API_URL}/projects/{project_id}/assets", json=asset_payload, headers=headers)
     
     if resp.status_code in [200, 201]:
         asset_id = resp.json()["id"]

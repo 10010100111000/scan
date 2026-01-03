@@ -39,24 +39,24 @@ async def list_scan_configs(
         if isinstance(cfg, dict) and cfg.get("config_name")
     ]
 
-@router.post("/orgs/{org_id}/assets", response_model=schemas.AssetRead, status_code=status.HTTP_201_CREATED)
-async def create_asset_for_org(
-    org_id: int,
+@router.post("/projects/{project_id}/assets", response_model=schemas.AssetRead, status_code=status.HTTP_201_CREATED)
+async def create_asset_for_project(
+    project_id: int,
     asset_in: schemas.AssetCreate,
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user)
 ):
     """
-    为指定的组织创建一个新的根资产。
+    为指定的项目创建一个新的根资产。
     """
-    org = await db.get(models.Organization, org_id)
-    if not org:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"组织 ID {org_id} 不存在")
+    project = await db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"项目 ID {project_id} 不存在")
 
     db_asset = models.Asset(
         name=asset_in.name,
         type=asset_in.type,
-        organization_id=org_id
+        project_id=project_id
     )
     db.add(db_asset)
     try:
