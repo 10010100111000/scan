@@ -290,6 +290,7 @@ class WebFindingRead(WebFindingBase, OrmModel):
 class AdminCreate(BaseModel):
     username: str = Field(..., description="管理员用户名")
     password: str = Field(..., description="管理员密码")
+    email: Optional[str] = Field(None, description="管理员邮箱（可选）")
 
 class UserRead(OrmModel):
     id: int
