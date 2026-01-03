@@ -11,11 +11,33 @@ from app.api.v1 import schemas # 导入 Pydantic 模型
 
 # 导入 ARQ 配置和扫描配置加载器
 from app.core.arq_config import get_arq_pool, TASK_RUN_SCAN, ARQ_QUEUE_NAME
-from app.core.config_loader import get_scan_config_by_name, get_available_scan_config_names
+from app.core.config_loader import (
+    get_scan_config_by_name,
+    get_available_scan_config_names,
+    load_scan_configs,
+)
 from arq.connections import ArqRedis # 导入 ArqRedis 类型提示
 
 # 1. 创建 APIRouter
 router = APIRouter()
+
+@router.get("/scan-configs", response_model=list[schemas.ScanConfigSummary])
+async def list_scan_configs(
+    current_user: models.User = Depends(deps.get_current_active_user)
+):
+    """
+    获取可用的扫描配置列表，供前端下拉选择。
+    """
+    configs = load_scan_configs()
+    return [
+        schemas.ScanConfigSummary(
+            name=cfg.get("config_name"),
+            agent_type=cfg.get("agent_type"),
+            description=cfg.get("description")
+        )
+        for cfg in configs
+        if isinstance(cfg, dict) and cfg.get("config_name")
+    ]
 
 @router.post("/orgs/{org_id}/assets", response_model=schemas.AssetRead, status_code=status.HTTP_201_CREATED)
 async def create_asset_for_org(
