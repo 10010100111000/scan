@@ -1,7 +1,9 @@
 # backend/main.py
 
+import os
 import asyncio
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.data.session import engine
 from app.data.base import Base
 
@@ -14,6 +16,21 @@ from app.core.arq_config import close_arq_pool
 app = FastAPI(
     title="combo",
     description="个人自残扫描管理平台"
+)
+
+# 允许前端跨域访问 (便于 Docker/本地调试)
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins == "*":
+    origins = ["*"]
+else:
+    origins = [origin.strip() for origin in allowed_origins.split(",") if origin.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 2. 定义一个“启动”事件 (保持不变)
