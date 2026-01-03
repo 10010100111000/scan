@@ -299,6 +299,10 @@ class LoginRequest(BaseModel):
     username: str = Field(..., description="用户名")
     password: str = Field(..., description="密码")
 
+class ForgotPasswordRequest(BaseModel):
+    email: Optional[str] = Field(None, description="用户邮箱（可选）", example="admin@example.com")
+    username: Optional[str] = Field(None, description="用户名（可选）", example="admin")
+
 class PasswordChangeRequest(BaseModel):
     old_password: str = Field(..., description="当前密码")
     new_password: str = Field(..., description="新密码")
