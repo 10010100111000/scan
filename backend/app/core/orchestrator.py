@@ -125,7 +125,7 @@ async def run_scan_task_logic(task_id: int):
                     if not host_obj:
                         host_obj = models.Host(
                             hostname=hostname,
-                            organization_id=asset.organization_id,
+                            project_id=asset.project_id,
                             root_asset_id=asset.id,
                             status="discovered"
                         )
@@ -149,7 +149,7 @@ async def run_scan_task_logic(task_id: int):
                         if not ip_obj:
                             ip_obj = models.IPAddress(
                                 ip_address=ip_value,
-                                organization_id=asset.organization_id,
+                                project_id=asset.project_id,
                                 root_asset_id=asset.id,
                                 status="discovered"
                             )
@@ -194,7 +194,7 @@ async def run_scan_task_logic(task_id: int):
                         if not db_ip:
                             db_ip = models.IPAddress(
                                 ip_address=ip,
-                                organization_id=asset.organization_id,
+                                project_id=asset.project_id,
                                 root_asset_id=asset.id,
                                 status="discovered"
                             )
@@ -244,7 +244,7 @@ async def run_scan_task_logic(task_id: int):
                             if not db_ip:
                                 db_ip = models.IPAddress(
                                     ip_address=ip,
-                                    organization_id=asset.organization_id,
+                                    project_id=asset.project_id,
                                     root_asset_id=asset.id,
                                     status="discovered"
                                 )
