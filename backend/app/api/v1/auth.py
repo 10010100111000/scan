@@ -19,6 +19,43 @@ from app.userManage.security import (
 #    这就像一个“迷你”的 FastAPI app
 router = APIRouter()
 
+@router.get("/status", response_model=schemas.AuthStatus)
+async def get_auth_status(
+    is_first_run: bool = Depends(deps.check_first_run),
+):
+    """
+    返回认证状态，用于前端判断是否需要展示管理员注册入口。
+    """
+    return schemas.AuthStatus(first_run=is_first_run)
+
+@router.post("/admin/init", response_model=schemas.Message, status_code=status.HTTP_201_CREATED)
+async def init_admin_user(
+    admin_in: schemas.AdminCreate,
+    is_first_run: bool = Depends(deps.check_first_run),
+    db: AsyncSession = Depends(deps.get_db),
+):
+    """
+    仿 FastAPI Admin 的初始化逻辑：仅在首次运行时可创建首个管理员。
+    后续访问直接返回 403。
+    """
+    if not is_first_run:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="平台已初始化，无法再次创建管理员。"
+        )
+
+    hashed_password = get_password_hash(admin_in.password)
+    db_user = models.User(
+        username=admin_in.username,
+        hashed_password=hashed_password,
+        is_active=True,
+        is_superuser=True,
+        email=admin_in.email,
+    )
+    db.add(db_user)
+    await db.commit()
+    return schemas.Message(detail="管理员创建成功，请返回登录页登录。")
+
 @router.post("/setup", response_model=schemas.UserRead)
 async def setup_admin_user(
     admin_in: schemas.AdminCreate,
@@ -65,3 +102,16 @@ async def login_for_access_token(
         )
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/forgot", response_model=schemas.Message)
+async def forgot_password(
+    payload: schemas.ForgotPasswordRequest,
+    is_first_run: bool = Depends(deps.check_first_run),
+):
+    """
+    忘记密码占位接口。当前未启用邮件找回，只做温馨提示。
+    """
+    if is_first_run:
+        return schemas.Message(detail="平台尚未初始化管理员，请先注册管理员账号")
+    return schemas.Message(detail="暂未开放自助重置密码，请联系管理员处理")
