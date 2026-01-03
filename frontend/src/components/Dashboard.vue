@@ -1,121 +1,121 @@
 <template>
   <div class="section-grid">
-    <a-card class="table-card" :bordered="false" title="快速发起扫描" :extra="'自动轮询 + 实时渲染'">
-      <a-form layout="vertical">
-        <a-form-item label="组织 ID">
-          <a-input v-model:value="form.orgId" placeholder="已有组织 ID" />
-        </a-form-item>
-        <a-form-item label="资产名称">
-          <a-input v-model:value="form.assetName" placeholder="example.com / 1.1.1.0/24" />
-        </a-form-item>
-        <a-form-item label="资产类型">
-          <a-select v-model:value="form.assetType">
-            <a-select-option value="domain">域名</a-select-option>
-            <a-select-option value="cidr">CIDR</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="扫描配置">
-          <a-select
-            v-model:value="form.config"
-            show-search
-            :loading="loadingConfigs"
-            placeholder="选择扫描器"
-            option-filter-prop="label"
-          >
-            <a-select-option v-for="c in scanConfigs" :key="c.name" :value="c.name" :label="c.name">
-              <span>{{ c.name }}</span>
-              <span style="color: #94a3b8; margin-left: 8px;">({{ c.agent_type || "unknown" }})</span>
-            </a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-button type="primary" :loading="launching" block @click="launchScan">创建资产并扫描</a-button>
-      </a-form>
+    <div class="panel table-card">
+      <div class="panel-header">
+        <div class="panel-title">快速发起扫描</div>
+        <el-tag type="info" effect="dark">自动轮询 + 实时渲染</el-tag>
+      </div>
+      <div class="panel-body">
+        <el-form :model="form" label-width="120px" label-position="left" @submit.prevent>
+          <el-form-item label="组织 ID">
+            <el-input v-model="form.orgId" placeholder="已有组织 ID" />
+          </el-form-item>
+          <el-form-item label="资产名称">
+            <el-input v-model="form.assetName" placeholder="example.com / 1.1.1.0/24" />
+          </el-form-item>
+          <el-form-item label="资产类型">
+            <el-select v-model="form.assetType" placeholder="选择类型">
+              <el-option label="域名" value="domain" />
+              <el-option label="CIDR" value="cidr" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="扫描配置">
+            <el-select v-model="form.config" filterable :loading="loadingConfigs" placeholder="选择扫描器">
+              <el-option v-for="c in scanConfigs" :key="c.name" :label="c.name" :value="c.name">
+                <span>{{ c.name }}</span>
+                <span style="color: #94a3b8; margin-left: 8px;">({{ c.agent_type || "unknown" }})</span>
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="launching" @click="launchScan">创建资产并扫描</el-button>
+          </el-form-item>
+        </el-form>
 
-      <a-divider />
-      <div class="panel-title" style="margin-bottom: 12px;">任务日志</div>
-      <div class="log-area" style="height: 220px;">
-        <div v-if="logLines.length === 0" style="color: #64748b;">等待任务...</div>
-        <div v-else class="log-scroll" ref="logScrollbar">
-          <div v-for="(line, idx) in logLines" :key="idx">{{ line }}</div>
+        <el-divider />
+        <div class="panel-title" style="margin-bottom: 12px;">任务日志</div>
+        <div class="log-area" style="height: 220px;">
+          <el-scrollbar ref="logScrollbar" height="200px">
+            <div v-if="logLines.length === 0" style="color: #64748b;">等待任务...</div>
+            <div v-for="(line, idx) in logLines" :key="idx">{{ line }}</div>
+          </el-scrollbar>
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center;">
+          <el-tag :type="statusTag.type" effect="dark">{{ statusTag.text }}</el-tag>
+          <span v-if="currentTaskId" style="color: #94a3b8;">任务 ID: {{ currentTaskId }}</span>
         </div>
       </div>
-      <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center;">
-        <a-tag :color="statusTag.color">{{ statusTag.text }}</a-tag>
-        <span v-if="currentTaskId" style="color: #94a3b8;">任务 ID: {{ currentTaskId }}</span>
-      </div>
-    </a-card>
+    </div>
 
-    <a-card class="table-card" :bordered="false" title="最近任务">
-      <template #extra>
-        <a-button size="small" @click="loadTasks">刷新</a-button>
-      </template>
-      <a-table
-        size="small"
-        :data-source="tasks"
-        :pagination="false"
-        :scroll="{ y: 320 }"
-        row-key="id"
-        :columns="taskColumns"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'status'">
-            <a-tag :color="statusToTag(record.status)">{{ record.status }}</a-tag>
-          </template>
-          <template v-else-if="column.key === 'config_name'">
-            {{ record.config_name }}
-          </template>
-          <template v-else-if="column.key === 'created_at'">
-            {{ record.created_at }}
-          </template>
-          <template v-else-if="column.key === 'id'">
-            {{ record.id }}
-          </template>
-        </template>
-      </a-table>
-    </a-card>
+    <div class="panel table-card">
+      <div class="panel-header">
+        <div class="panel-title">最近任务</div>
+        <el-button size="small" @click="loadTasks">刷新</el-button>
+      </div>
+      <div class="panel-body">
+        <el-table :data="tasks" border size="small" height="360">
+          <el-table-column prop="id" label="ID" width="70" />
+          <el-table-column prop="config_name" label="配置" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="statusToTag(row.status)">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="created_at" label="创建时间" width="160" />
+        </el-table>
+      </div>
+    </div>
   </div>
 
-  <a-card class="panel" :bordered="false" style="margin-top: 16px;">
-    <template #title>最新结果</template>
-    <template #extra><span style="color: #94a3b8;">完成后自动拉取子域 / 端口 / Web / 漏洞</span></template>
-    <a-tabs v-model:activeKey="activeTab">
-      <a-tab-pane key="hosts" tab="子域名">
-        <a-table size="small" :data-source="hosts" :pagination="false" :scroll="{ y: 240 }" row-key="id">
-          <a-table-column title="Host" dataIndex="hostname" key="hostname" />
-          <a-table-column title="状态" dataIndex="status" key="status" />
-          <a-table-column title="IP" dataIndex="ips" key="ips" />
-          <a-table-column title="发现时间" dataIndex="created_at" key="created_at" />
-        </a-table>
-      </a-tab-pane>
-      <a-tab-pane key="ports" tab="端口">
-        <a-table size="small" :data-source="ports" :pagination="false" :scroll="{ y: 240 }" row-key="id">
-          <a-table-column title="IP" dataIndex="ip" key="ip" />
-          <a-table-column title="端口" dataIndex="port" key="port" />
-          <a-table-column title="服务" dataIndex="service" key="service" />
-        </a-table>
-      </a-tab-pane>
-      <a-tab-pane key="web" tab="Web">
-        <a-table size="small" :data-source="web" :pagination="false" :scroll="{ y: 240 }" row-key="id">
-          <a-table-column title="URL" dataIndex="url" key="url" />
-          <a-table-column title="状态码" dataIndex="status" key="status" />
-          <a-table-column title="标题" dataIndex="title" key="title" />
-          <a-table-column title="技术栈" dataIndex="tech" key="tech" />
-        </a-table>
-      </a-tab-pane>
-      <a-tab-pane key="vulns" tab="漏洞">
-        <a-table size="small" :data-source="vulns" :pagination="false" :scroll="{ y: 240 }" row-key="id">
-          <a-table-column title="名称" dataIndex="name" key="name" />
-          <a-table-column title="严重性" key="severity" :customRender="({ record }) => record.severity" />
-          <a-table-column title="命中 URL" dataIndex="url" key="url" />
-        </a-table>
-      </a-tab-pane>
-    </a-tabs>
-  </a-card>
+  <div class="panel" style="margin-top: 16px;">
+    <div class="panel-header">
+      <div class="panel-title">最新结果</div>
+      <div style="color: #94a3b8;">完成后自动拉取子域 / 端口 / Web / 漏洞</div>
+    </div>
+    <div class="panel-body">
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="子域名" name="hosts">
+          <el-table :data="hosts" size="small" border height="260">
+            <el-table-column prop="hostname" label="Host" />
+            <el-table-column prop="status" label="状态" width="120" />
+            <el-table-column prop="ips" label="IP" />
+            <el-table-column prop="created_at" label="发现时间" width="180" />
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="端口" name="ports">
+          <el-table :data="ports" size="small" border height="260">
+            <el-table-column prop="ip" label="IP" />
+            <el-table-column prop="port" label="端口" width="100" />
+            <el-table-column prop="service" label="服务" />
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="Web" name="web">
+          <el-table :data="web" size="small" border height="260">
+            <el-table-column prop="url" label="URL" />
+            <el-table-column prop="status" label="状态码" width="100" />
+            <el-table-column prop="title" label="标题" />
+            <el-table-column prop="tech" label="技术栈" />
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="漏洞" name="vulns">
+          <el-table :data="vulns" size="small" border height="260">
+            <el-table-column prop="name" label="名称" />
+            <el-table-column prop="severity" label="严重性" width="120">
+              <template #default="{ row }">
+                <el-tag :type="severityTag(row.severity)">{{ row.severity }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="url" label="命中 URL" />
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { message } from "ant-design-vue";
+import { ElMessage } from "element-plus";
 import {
   createAsset,
   fetchHosts,
@@ -155,27 +155,31 @@ const web = ref([]);
 const vulns = ref([]);
 const logScrollbar = ref(null);
 
-const taskColumns = [
-  { title: "ID", dataIndex: "id", key: "id", width: 80 },
-  { title: "配置", dataIndex: "config_name", key: "config_name" },
-  { title: "状态", dataIndex: "status", key: "status", width: 120 },
-  { title: "创建时间", dataIndex: "created_at", key: "created_at", width: 180 },
-];
-
 const statusTag = computed(() => {
-  if (!currentTaskId.value) return { text: "待启动", color: "blue" };
-  if (logLines.value.find((l) => l.includes("failed"))) return { text: "失败", color: "red" };
-  return { text: "运行中", color: "green" };
+  if (!currentTaskId.value) return { text: "待启动", type: "info" };
+  if (logLines.value.find((l) => l.includes("failed"))) return { text: "失败", type: "danger" };
+  return { text: "运行中", type: "success" };
 });
 
 const statusToTag = (status) => {
   const map = {
-    pending: "blue",
-    running: "gold",
-    completed: "green",
-    failed: "red",
+    pending: "info",
+    running: "warning",
+    completed: "success",
+    failed: "danger",
   };
-  return map[status] || "blue";
+  return map[status] || "info";
+};
+
+const severityTag = (sev) => {
+  const map = {
+    critical: "danger",
+    high: "danger",
+    medium: "warning",
+    low: "info",
+    info: "info",
+  };
+  return map[sev] || "info";
 };
 
 const loadConfigs = async () => {
@@ -186,7 +190,7 @@ const loadConfigs = async () => {
     if (!form.config && data.length) form.config = data[0].name;
   } catch (err) {
     console.error(err);
-    message.error("无法加载扫描配置");
+    ElMessage.error("无法加载扫描配置");
   } finally {
     loadingConfigs.value = false;
   }
@@ -197,15 +201,14 @@ const loadTasks = async () => {
     tasks.value = await listTasks({ limit: 20 });
   } catch (err) {
     console.error(err);
-    message.error("获取任务列表失败");
+    ElMessage.error("获取任务列表失败");
   }
 };
 
 const appendLog = (line) => {
   logLines.value.push(line);
   requestAnimationFrame(() => {
-    const el = logScrollbar.value;
-    if (el) el.scrollTop = el.scrollHeight;
+    logScrollbar.value?.setScrollTop(99999);
   });
 };
 
@@ -239,16 +242,16 @@ const loadResults = async () => {
     ports.value = portData;
     web.value = webData;
     vulns.value = vulnData;
-    message.success("结果已更新");
+    ElMessage.success("结果已更新");
   } catch (err) {
     console.error(err);
-    message.error("获取结果失败");
+    ElMessage.error("获取结果失败");
   }
 };
 
 const launchScan = async () => {
   if (!form.orgId || !form.assetName || !form.config) {
-    message.warning("请完整填写组织、资产与扫描配置");
+    ElMessage.warning("请完整填写组织、资产与扫描配置");
     return;
   }
   launching.value = true;
@@ -264,7 +267,7 @@ const launchScan = async () => {
     pollingTimer.value = setInterval(pollTask, 3000);
   } catch (err) {
     console.error(err);
-    message.error(err?.response?.data?.detail || "发起任务失败");
+    ElMessage.error(err?.response?.data?.detail || "发起任务失败");
   } finally {
     launching.value = false;
   }
