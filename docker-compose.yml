@@ -23,11 +23,11 @@ services:
 
   # 3. 后端 API 服务
   backend:
-    build: ./backend  # 根据 backend/Dockerfile 构建镜像
+    build:
+      context: .
+      dockerfile: backend/Dockerfile  # 根据 backend/Dockerfile 构建镜像（包含前端构建）
     container_name: pentest_backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app  # 挂载代码目录，修改代码后无需重建镜像
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     environment:
@@ -41,12 +41,12 @@ services:
 
   # 4. 扫描 Worker 服务 (消费者)
   worker:
-    build: ./backend  # 复用同一个镜像
+    build:
+      context: .
+      dockerfile: backend/Dockerfile  # 复用同一个镜像
     container_name: pentest_worker
     # 启动 ARQ Worker，--watch 实现代码修改后自动重启
     command: arq worker.WorkerSettings --watch /app
-    volumes:
-      - ./backend:/app
     environment:
       - DATABASE_URL=postgresql+asyncpg://pentest_user:kali@db:5432/pentest_db
       - REDIS_HOST=redis
