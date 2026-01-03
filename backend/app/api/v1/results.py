@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.api import deps
 from app.data import models
+from app.api.v1 import schemas
 
 router = APIRouter()
 
@@ -184,9 +185,15 @@ async def delete_host_for_asset(
     return {"detail": "deleted"}
 
 # --- 2. 获取 IP 和 端口 (Ports) ---
-@router.get("/assets/{asset_id}/ports", response_model=List[dict])
+@router.get(
+    "/assets/{asset_id}/ports",
+    response_model=List[schemas.PortSummary],
+    summary="获取资产开放端口（分页）",
+)
 async def get_asset_ports(
     asset_id: int,
+    skip: int = Query(0, ge=0, description="偏移量"),
+    limit: int = Query(100, ge=1, le=500, description="返回条目数"),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
@@ -196,7 +203,9 @@ async def get_asset_ports(
         .options(selectinload(models.Port.ip_address))
         .join(models.IPAddress, models.Port.ip_address_id == models.IPAddress.id)
         .where(models.IPAddress.root_asset_id == asset_id)
-        .limit(200)
+        .order_by(models.Port.id.desc())
+        .offset(skip)
+        .limit(limit)
     )
     result = await db.execute(stmt)
     ports = result.scalars().all()
@@ -213,9 +222,15 @@ async def get_asset_ports(
     return data
 
 # --- 3. 获取 Web 服务 ---
-@router.get("/assets/{asset_id}/web", response_model=List[dict])
+@router.get(
+    "/assets/{asset_id}/web",
+    response_model=List[schemas.HTTPServiceSummary],
+    summary="获取资产 Web 服务（分页）",
+)
 async def get_asset_web(
     asset_id: int,
+    skip: int = Query(0, ge=0, description="偏移量"),
+    limit: int = Query(100, ge=1, le=500, description="返回条目数"),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
@@ -224,7 +239,9 @@ async def get_asset_web(
         .join(models.Port, models.HTTPService.port_id == models.Port.id)
         .join(models.IPAddress, models.Port.ip_address_id == models.IPAddress.id)
         .where(models.IPAddress.root_asset_id == asset_id)
-        .limit(100)
+        .order_by(models.HTTPService.id.desc())
+        .offset(skip)
+        .limit(limit)
     )
     result = await db.execute(stmt)
     services = result.scalars().all()
@@ -234,9 +251,15 @@ async def get_asset_web(
     ]
 
 # --- 4. 获取漏洞 ---
-@router.get("/assets/{asset_id}/vulns", response_model=List[dict])
+@router.get(
+    "/assets/{asset_id}/vulns",
+    response_model=List[schemas.VulnerabilitySummary],
+    summary="获取资产漏洞（分页）",
+)
 async def get_asset_vulns(
     asset_id: int,
+    skip: int = Query(0, ge=0, description="偏移量"),
+    limit: int = Query(100, ge=1, le=500, description="返回条目数"),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
@@ -250,7 +273,9 @@ async def get_asset_vulns(
             (models.IPAddress.root_asset_id == asset_id) |
             (models.Host.root_asset_id == asset_id)
         )
-        .limit(100)
+        .order_by(models.Vulnerability.id.desc())
+        .offset(skip)
+        .limit(limit)
     )
     result = await db.execute(stmt)
     vulns = result.scalars().all()
