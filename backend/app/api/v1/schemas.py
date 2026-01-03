@@ -188,6 +188,29 @@ class VulnerabilitySummary(BaseModel):
     severity: SeverityLiteral = Field(..., description="漏洞严重程度")
     url: Optional[str] = Field(None, description="命中的 URL")
 
+
+# --- Summaries for list endpoints ---
+class PortSummary(BaseModel):
+    id: int = Field(..., description="端口 ID")
+    ip: str = Field(..., description="IP 地址")
+    port: int = Field(..., description="端口号")
+    service: Optional[str] = Field(None, description="服务名称")
+
+
+class HTTPServiceSummary(BaseModel):
+    id: int = Field(..., description="HTTP 服务 ID")
+    url: str = Field(..., description="完整 URL")
+    title: Optional[str] = Field(None, description="页面标题")
+    tech: Optional[Dict[str, Any]] = Field(None, description="技术栈指纹")
+    status: Optional[int] = Field(None, description="HTTP 状态码")
+
+
+class VulnerabilitySummary(BaseModel):
+    id: int = Field(..., description="漏洞 ID")
+    name: str = Field(..., description="漏洞名称或模板名")
+    severity: SeverityLiteral = Field(..., description="漏洞严重程度")
+    url: Optional[str] = Field(None, description="命中的 URL")
+
 # --- GenericFinding Schemas ---
 class GenericFindingBase(BaseModel):
     finding_type: str = Field(..., description="发现物的类型", example="dns_cname")
@@ -221,6 +244,12 @@ class ScanTaskRead(ScanTaskBase, OrmModel):
     log: Optional[str] = Field(None, description="任务执行日志 (通常只在失败时填充)")
     created_at: datetime
     completed_at: Optional[datetime] = None
+
+
+class ScanConfigSummary(BaseModel):
+    name: str = Field(..., description="扫描配置名称")
+    agent_type: Optional[str] = Field(None, description="扫描代理类型（subdomain/portscan/http/vulnerability 等）")
+    description: Optional[str] = Field(None, description="配置描述")
 
 
 class ScanConfigSummary(BaseModel):
@@ -275,16 +304,3 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
-
-
-class ForgotPasswordRequest(BaseModel):
-    username: str = Field(..., description="登录用户名")
-    email: Optional[str] = Field(None, description="联系邮箱，便于管理员跟进")
-
-
-class AuthStatus(BaseModel):
-    first_run: bool = Field(..., description="是否首次运行（尚未初始化管理员）")
-
-
-class Message(BaseModel):
-    detail: str
