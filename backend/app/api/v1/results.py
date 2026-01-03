@@ -33,7 +33,7 @@ def _serialize_host(host: models.Host) -> Dict[str, Any]:
         "created_at": host.created_at,
         "ips": [ip.ip_address for ip in (host.ip_addresses or [])],
         "is_bookmarked": host.is_bookmarked,
-        "organization_id": host.organization_id,
+        "project_id": host.project_id,
         "root_asset_id": host.root_asset_id,
     }
 
@@ -109,7 +109,7 @@ async def create_host_for_asset(
         hostname=payload.hostname.lower().rstrip("."),
         status=payload.status,
         is_bookmarked=payload.is_bookmarked,
-        organization_id=asset.organization_id,
+        project_id=asset.project_id,
         root_asset_id=asset.id,
     )
     db.add(host)
@@ -128,7 +128,7 @@ async def create_host_for_asset(
             if not ip_obj:
                 ip_obj = models.IPAddress(
                     ip_address=ip_val,
-                    organization_id=asset.organization_id,
+                    project_id=asset.project_id,
                     root_asset_id=asset.id,
                     status="discovered"
                 )

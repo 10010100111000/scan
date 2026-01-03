@@ -33,15 +33,15 @@ class TagCreate(TagBase):
 class TagRead(TagBase, OrmModel):
     id: int
 
-# --- Organization Schemas ---
+# --- Project Schemas ---
 
-class OrgBase(BaseModel):
-    name: str = Field(..., description="组织或项目的名称", example="我的测试项目")
+class ProjectBase(BaseModel):
+    name: str = Field(..., description="项目的名称", example="我的测试项目")
 
-class OrgCreate(OrgBase):
+class ProjectCreate(ProjectBase):
     pass
 
-class OrgRead(OrgBase, OrmModel):
+class ProjectRead(ProjectBase, OrmModel):
     id: int
     created_at: datetime
 
@@ -52,7 +52,7 @@ class AssetBase(BaseModel):
     type: AssetTypeLiteral = Field(..., description="根资产的类型", example="domain")
 
 class AssetCreate(AssetBase):
-    # 创建时不需要 organization_id, 因为它从 URL 路径获取
+    # 创建时不需要 project_id, 因为它从 URL 路径获取
     # 我们可以在这里添加一个示例, FastAPI 会在 /docs 的 Request Body 中显示它
     model_config = ConfigDict(
         json_schema_extra={
@@ -65,7 +65,7 @@ class AssetCreate(AssetBase):
 
 class AssetRead(AssetBase, OrmModel):
     id: int
-    organization_id: int
+    project_id: int
     created_at: datetime
 
 # --- IPAddress Schemas ---
@@ -97,12 +97,12 @@ class HostBase(BaseModel):
     is_bookmarked: bool = Field(False, description="是否收藏")
 
 class HostCreate(HostBase):
-    organization_id: int = Field(..., description="所属组织的 ID")
+    project_id: int = Field(..., description="所属项目的 ID")
     root_asset_id: Optional[int] = Field(None, description="关联的根资产 ID (可选)")
 
 class HostRead(HostBase, OrmModel):
     id: int
-    organization_id: int
+    project_id: int
     root_asset_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -221,11 +221,11 @@ class GenericFindingBase(BaseModel):
     related_asset_id: Optional[int] = Field(None, description="关联资产 ID")
 
 class GenericFindingCreate(GenericFindingBase):
-    organization_id: int
+    project_id: int
 
 class GenericFindingRead(GenericFindingBase, OrmModel):
     id: int
-    organization_id: int
+    project_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
 
