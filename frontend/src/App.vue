@@ -3,7 +3,10 @@
     <div class="panel" style="max-width: 1080px; margin: 0 auto 20px auto;">
       <div class="panel-header">
         <div class="panel-title">Combo 扫描控制台</div>
-        <div v-if="token" class="pill">已登录</div>
+        <div v-if="token" class="pill">
+          <el-icon><Lock /></el-icon>
+          已登录
+        </div>
       </div>
       <div class="panel-body">
         <LoginView v-if="!token" @logged-in="onLogin" />
@@ -15,6 +18,7 @@
 
 <script setup>
 import { ref } from "vue";
+import { Lock } from "@element-plus/icons-vue";
 import LoginView from "./components/LoginView.vue";
 import Dashboard from "./components/Dashboard.vue";
 
