@@ -292,10 +292,38 @@ class AdminCreate(BaseModel):
     password: str = Field(..., description="管理员密码")
     email: Optional[str] = Field(None, description="管理员邮箱（可选）")
 
+class AdminStatus(BaseModel):
+    first_run: bool = Field(..., description="是否首次运行，需要初始化管理员")
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., description="用户名")
+    password: str = Field(..., description="密码")
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str = Field(..., description="当前密码")
+    new_password: str = Field(..., description="新密码")
+
+class AccessToken(BaseModel):
+    accessToken: str = Field(..., description="Bearer 访问令牌")
+    tokenType: str = Field("Bearer", description="令牌类型")
+
 class UserRead(OrmModel):
     id: int
     username: str
     is_active: bool
+
+class UserInfo(BaseModel):
+    """
+    与 Vben Admin 前端期望的用户信息字段保持一致。
+    """
+    userId: str
+    username: str
+    realName: str
+    avatar: str
+    roles: List[str] = []
+    homePath: str = "/dashboard/analytics"
+    desc: str = "超级管理员"
+    token: Optional[str] = None
 
 # --- Token (认证) Schemas ---
 
