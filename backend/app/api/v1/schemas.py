@@ -308,8 +308,3 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
-
-
-class ForgotPasswordRequest(BaseModel):
-    username: str = Field(..., description="登录用户名")
-    email: Optional[str] = Field(None, description="联系邮箱，便于管理员跟进")
