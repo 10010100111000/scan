@@ -2,8 +2,13 @@
 
 import os
 import asyncio
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
 from app.data.session import engine
 from app.data.base import Base
 
@@ -11,6 +16,10 @@ from app.data.base import Base
 from app.api.api_router import api_router
 # 导入 ARQ 关闭函数
 from app.core.arq_config import close_arq_pool
+
+# --- 前端静态资源路径 ---
+STATIC_ROOT = Path("/app/static")
+INDEX_FILE = STATIC_ROOT / "index.html"
 
 # 1. 创建 FastAPI 应用实例
 app = FastAPI(
@@ -63,12 +72,39 @@ async def on_shutdown():
     await close_arq_pool()
     print("ARQ Redis 连接池已关闭。")
 
-# 3. 根路由 (保持不变)
-@app.get("/")
-def read_root():
-    return {"message": "欢迎使用 Lightweight Scanner API"}
-
-
-# 4. *** 关键改动：包含我们所有的 API 路由 ***
+# 3. *** 关键改动：包含我们所有的 API 路由 ***
 #    所有来自 api_router 的路由, 都会被自动加上 "/api" 的前缀
 app.include_router(api_router, prefix="/api")
+
+
+# 4. 静态资源托管（前端 SPA）
+if (STATIC_ROOT / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=STATIC_ROOT / "assets"), name="assets")
+
+
+def _should_serve_spa(path: str) -> bool:
+    """判断请求是否应该回退到前端 SPA。"""
+    protected_prefixes = ("api", "docs", "openapi.json")
+    return not any(path.startswith(prefix) for prefix in protected_prefixes)
+
+
+def _spa_response():
+    if INDEX_FILE.exists():
+        return FileResponse(INDEX_FILE)
+    return JSONResponse({"message": "欢迎使用 Lightweight Scanner API"}, status_code=200)
+
+
+@app.get("/", include_in_schema=False)
+async def serve_root():
+    return _spa_response()
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    """
+    SPA History 模式回退：对于非 API/文档路径，返回构建后的 index.html。
+    """
+    if not _should_serve_spa(full_path):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    return _spa_response()
