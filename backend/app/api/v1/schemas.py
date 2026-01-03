@@ -3,9 +3,14 @@
 定义 Pydantic 模型 (Schemas), 用于 API 的数据验证和响应。
 (增强版：添加了 Field 的 description 和 example)
 """
-from pydantic import BaseModel, Field # <-- 导入 Field
+from pydantic import BaseModel, Field, ConfigDict # <-- 导入 Field
 from datetime import datetime
 from typing import Optional, List, Any, Dict, Literal
+
+# --- 通用配置与枚举 ---
+class OrmModel(BaseModel):
+    """统一开启 from_attributes 以兼容 ORM 对象"""
+    model_config = ConfigDict(from_attributes=True)
 
 # --- 通用枚举 ---
 AssetTypeLiteral = Literal["domain", "cidr"]
@@ -25,11 +30,8 @@ class TagBase(BaseModel):
 class TagCreate(TagBase):
     pass
 
-class TagRead(TagBase):
+class TagRead(TagBase, OrmModel):
     id: int
-
-    class Config:
-        orm_mode = True
 
 # --- Organization Schemas ---
 
@@ -39,12 +41,9 @@ class OrgBase(BaseModel):
 class OrgCreate(OrgBase):
     pass
 
-class OrgRead(OrgBase):
+class OrgRead(OrgBase, OrmModel):
     id: int
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 # --- Asset Schemas ---
 
@@ -55,21 +54,19 @@ class AssetBase(BaseModel):
 class AssetCreate(AssetBase):
     # 创建时不需要 organization_id, 因为它从 URL 路径获取
     # 我们可以在这里添加一个示例, FastAPI 会在 /docs 的 Request Body 中显示它
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "example.com",
                 "type": "domain"
             }
         }
+    )
 
-class AssetRead(AssetBase):
+class AssetRead(AssetBase, OrmModel):
     id: int
     organization_id: int
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 # --- IPAddress Schemas ---
 
@@ -86,14 +83,11 @@ class IPAddressBase(BaseModel):
 class IPAddressCreate(IPAddressBase):
     pass
 
-class IPAddressRead(IPAddressBase):
+class IPAddressRead(IPAddressBase, OrmModel):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
     tags: List[TagRead] = []
-
-    class Config:
-        orm_mode = True
 
 # --- Host Schemas ---
 
@@ -106,16 +100,13 @@ class HostCreate(HostBase):
     organization_id: int = Field(..., description="所属组织的 ID")
     root_asset_id: Optional[int] = Field(None, description="关联的根资产 ID (可选)")
 
-class HostRead(HostBase):
+class HostRead(HostBase, OrmModel):
     id: int
     organization_id: int
     root_asset_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     tags: List[TagRead] = []
-
-    class Config:
-        orm_mode = True
 
 
 # --- Port Schemas ---
@@ -126,14 +117,11 @@ class PortBase(BaseModel):
 class PortCreate(PortBase):
      ip_address_id: int
 
-class PortRead(PortBase):
+class PortRead(PortBase, OrmModel):
     id: int
     ip_address_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
 
 # --- HTTPService Schemas ---
 class HTTPServiceBase(BaseModel):
@@ -150,14 +138,11 @@ class HTTPServiceBase(BaseModel):
 class HTTPServiceCreate(HTTPServiceBase):
     port_id: int
 
-class HTTPServiceRead(HTTPServiceBase):
+class HTTPServiceRead(HTTPServiceBase, OrmModel):
     id: int
     port_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
 
 # --- Vulnerability Schemas ---
 class VulnerabilityBase(BaseModel):
@@ -173,15 +158,35 @@ class VulnerabilityCreate(VulnerabilityBase):
     host_id: Optional[int] = None
     http_service_id: Optional[int] = None
 
-class VulnerabilityRead(VulnerabilityBase):
+class VulnerabilityRead(VulnerabilityBase, OrmModel):
     id: int
     host_id: Optional[int] = None
     http_service_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+
+# --- Summaries for list endpoints ---
+class PortSummary(BaseModel):
+    id: int = Field(..., description="端口 ID")
+    ip: str = Field(..., description="IP 地址")
+    port: int = Field(..., description="端口号")
+    service: Optional[str] = Field(None, description="服务名称")
+
+
+class HTTPServiceSummary(BaseModel):
+    id: int = Field(..., description="HTTP 服务 ID")
+    url: str = Field(..., description="完整 URL")
+    title: Optional[str] = Field(None, description="页面标题")
+    tech: Optional[Dict[str, Any]] = Field(None, description="技术栈指纹")
+    status: Optional[int] = Field(None, description="HTTP 状态码")
+
+
+class VulnerabilitySummary(BaseModel):
+    id: int = Field(..., description="漏洞 ID")
+    name: str = Field(..., description="漏洞名称或模板名")
+    severity: SeverityLiteral = Field(..., description="漏洞严重程度")
+    url: Optional[str] = Field(None, description="命中的 URL")
 
 # --- GenericFinding Schemas ---
 class GenericFindingBase(BaseModel):
@@ -195,14 +200,11 @@ class GenericFindingBase(BaseModel):
 class GenericFindingCreate(GenericFindingBase):
     organization_id: int
 
-class GenericFindingRead(GenericFindingBase):
+class GenericFindingRead(GenericFindingBase, OrmModel):
     id: int
     organization_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
 
 # --- ScanTask Schemas ---
 class ScanTaskBase(BaseModel):
@@ -214,14 +216,17 @@ class ScanTaskCreate(ScanTaskBase):
     # 通常由 /assets/{asset_id}/scan 接口内部创建
     pass
 
-class ScanTaskRead(ScanTaskBase):
+class ScanTaskRead(ScanTaskBase, OrmModel):
     id: int
     log: Optional[str] = Field(None, description="任务执行日志 (通常只在失败时填充)")
     created_at: datetime
     completed_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+
+class ScanConfigSummary(BaseModel):
+    name: str = Field(..., description="扫描配置名称")
+    agent_type: Optional[str] = Field(None, description="扫描代理类型（subdomain/portscan/http/vulnerability 等）")
+    description: Optional[str] = Field(None, description="配置描述")
 
 # --- RawScanResult Schemas ---
 class RawScanResultBase(BaseModel):
@@ -230,12 +235,9 @@ class RawScanResultBase(BaseModel):
 class RawScanResultCreate(RawScanResultBase):
     scan_task_id: int
 
-class RawScanResultRead(RawScanResultBase):
+class RawScanResultRead(RawScanResultBase, OrmModel):
     id: int
     scan_task_id: int
-
-    class Config:
-        orm_mode = True
 
 # --- WebFinding Schemas ---
 class WebFindingBase(BaseModel):
@@ -247,14 +249,11 @@ class WebFindingBase(BaseModel):
 class WebFindingCreate(WebFindingBase):
     http_service_id: int
 
-class WebFindingRead(WebFindingBase):
+class WebFindingRead(WebFindingBase, OrmModel):
     id: int
     http_service_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
 
 
 # --- User Schemas ---
@@ -263,13 +262,10 @@ class AdminCreate(BaseModel):
     username: str = Field(..., description="管理员用户名")
     password: str = Field(..., description="管理员密码")
 
-class UserRead(BaseModel):
+class UserRead(OrmModel):
     id: int
     username: str
     is_active: bool
-
-    class Config:
-        orm_mode = True
 
 # --- Token (认证) Schemas ---
 
@@ -279,3 +275,16 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    username: str = Field(..., description="登录用户名")
+    email: Optional[str] = Field(None, description="联系邮箱，便于管理员跟进")
+
+
+class AuthStatus(BaseModel):
+    first_run: bool = Field(..., description="是否首次运行（尚未初始化管理员）")
+
+
+class Message(BaseModel):
+    detail: str
