@@ -303,10 +303,6 @@ class PasswordChangeRequest(BaseModel):
     old_password: str = Field(..., description="当前密码")
     new_password: str = Field(..., description="新密码")
 
-class ForgotPasswordRequest(BaseModel):
-    username: Optional[str] = Field(None, description="用户名 (占位，可选)")
-    email: Optional[str] = Field(None, description="邮箱 (占位，可选)")
-
 class AccessToken(BaseModel):
     accessToken: str = Field(..., description="Bearer 访问令牌")
     tokenType: str = Field("Bearer", description="令牌类型")
