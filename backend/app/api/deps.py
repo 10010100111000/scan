@@ -40,10 +40,8 @@ async def check_first_run(db: AsyncSession = Depends(get_db)) -> bool:
 
 # --- 安全依赖 ---
 
-# *** 关键修复 ***
-# 路径必须是完整的 API 路径: /api/v1/auth/login
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
-# *** 结束修复 ***
+# 前端调用使用 /api/auth/login，因此这里的 tokenUrl 与之保持一致
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 async def get_current_active_user(

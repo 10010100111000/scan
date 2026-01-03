@@ -53,5 +53,5 @@ def read_root():
 
 
 # 4. *** 关键改动：包含我们所有的 API 路由 ***
-#    所有来自 api_router 的路由, 都会被自动加上 "/api/v1" 的前缀
-app.include_router(api_router, prefix="/api/v1")
+#    所有来自 api_router 的路由, 都会被自动加上 "/api" 的前缀
+app.include_router(api_router, prefix="/api")
