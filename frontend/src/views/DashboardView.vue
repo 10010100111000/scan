@@ -829,6 +829,7 @@ watch(scanOverlayOpen, (isOpen) => {
   width: 100%;
   background: #0b1020;
   box-shadow: 0 -24px 80px rgba(0, 0, 0, 0.4);
+  overflow: auto;
 }
 
 .scan-overlay__close {
