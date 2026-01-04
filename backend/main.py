@@ -2,8 +2,11 @@
 
 import os
 import asyncio
-from fastapi import FastAPI
+from pathlib import Path
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from app.data.session import engine
 from app.data.base import Base
 
@@ -32,6 +35,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 # 2. 定义一个“启动”事件 (保持不变)
 @app.on_event("startup")
@@ -63,12 +69,35 @@ async def on_shutdown():
     await close_arq_pool()
     print("ARQ Redis 连接池已关闭。")
 
-# 3. 根路由 (保持不变)
-@app.get("/")
-def read_root():
+app.include_router(api_router, prefix="/api")
+
+if FRONTEND_DIST.exists():
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend-static")
+
+
+@app.get("/", include_in_schema=False)
+async def serve_index():
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
     return {"message": "欢迎使用 Lightweight Scanner API"}
 
 
-# 4. *** 关键改动：包含我们所有的 API 路由 ***
-#    所有来自 api_router 的路由, 都会被自动加上 "/api" 的前缀
-app.include_router(api_router, prefix="/api")
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    """为前端单页应用提供 history 路由的 fallback。"""
+    if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("redoc") or full_path == "openapi.json":
+        raise HTTPException(status_code=404)
+
+    requested = FRONTEND_DIST / full_path
+    if requested.exists() and requested.is_file():
+        return FileResponse(requested)
+
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+
+    raise HTTPException(status_code=404, detail="页面不存在，请先构建前端 dist 目录")

@@ -1,3 +1,10 @@
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend .
+RUN npm run build
+
 # 使用明确发行版的 slim（非常关键）
 FROM python:3.10-slim-bookworm
 
@@ -55,15 +62,14 @@ RUN set -eux; \
     rm -f *.zip
 
 
-
-
 # === Python 依赖（清华源）===
-COPY requirements.txt .
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     -r requirements.txt
 
 # === 复制代码（最后一步，方便调试）===
-COPY . .
+COPY backend ./
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
