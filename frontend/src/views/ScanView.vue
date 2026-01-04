@@ -2,9 +2,9 @@
   <div class="scan-view">
     <header class="scan-view__header">
       <div>
-        <p class="eyebrow">????</p>
-        <h2>??????</h2>
-        <p class="subtitle">?????????????????????????</p>
+        <p class="eyebrow">NEW SCAN</p>
+        <h2>Launch a scan</h2>
+        <p class="subtitle">Pick a project, target, and scan profile. Tasks run in background.</p>
       </div>
     </header>
 
@@ -12,13 +12,13 @@
       <div class="scan-panel card-glass">
         <div class="form-grid">
           <div class="field">
-            <label class="field-label">??</label>
+            <label class="field-label">Project</label>
             <el-select
               v-model="form.project_id"
               filterable
               remote
               clearable
-              placeholder="???????"
+              placeholder="Select or search project"
               class="full-width"
               :remote-method="searchProjects"
               :loading="projectsLoading"
@@ -31,13 +31,13 @@
               />
             </el-select>
             <div class="field-actions">
-              <el-button text size="small" @click="loadProjects">????</el-button>
+              <el-button text size="small" @click="loadProjects">Refresh projects</el-button>
             </div>
           </div>
           <div class="field">
-            <label class="field-label">????????</label>
+            <label class="field-label">Create project (optional)</label>
             <div class="inline-row">
-              <el-input v-model="newProjectName" clearable placeholder="??????" />
+              <el-input v-model="newProjectName" clearable placeholder="Project name" />
               <el-button
                 type="primary"
                 plain
@@ -45,14 +45,14 @@
                 :loading="projectCreating"
                 @click="handleCreateProject"
               >
-                ??
+                Create
               </el-button>
             </div>
           </div>
         </div>
 
         <div class="search-box">
-          <el-input v-model="form.target" size="large" clearable placeholder="???? / IP / CIDR">
+          <el-input v-model="form.target" size="large" clearable placeholder="Domain / IP / CIDR">
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
@@ -61,25 +61,25 @@
 
         <div class="form-grid">
           <div class="field">
-            <label class="field-label">????</label>
+            <label class="field-label">Scan profile</label>
             <el-select
               v-model="form.config_name"
               filterable
-              placeholder="??????"
+              placeholder="Select scan profile"
               class="full-width"
               :loading="scanConfigsLoading"
             >
               <el-option v-for="cfg in scanConfigs" :key="cfg.name" :label="cfg.name" :value="cfg.name">
                 <div class="option-row">
                   <strong>{{ cfg.name }}</strong>
-                  <span class="text-faint">{{ cfg.description || '????' }}</span>
+                  <span class="text-faint">{{ cfg.description || 'No description' }}</span>
                 </div>
               </el-option>
             </el-select>
           </div>
           <div class="field">
-            <label class="field-label">????</label>
-            <el-select v-model="form.asset_type" placeholder="????" class="full-width">
+            <label class="field-label">Target type</label>
+            <el-select v-model="form.asset_type" placeholder="Select type" class="full-width">
               <el-option label="Domain" value="domain" />
               <el-option label="CIDR" value="cidr" />
             </el-select>
@@ -94,18 +94,18 @@
             :disabled="!form.target || !form.config_name || scanSubmitting"
             @click="handleStartScan"
           >
-            ????
+            Start scan
           </el-button>
-          <el-button text @click="resetForm">??</el-button>
+          <el-button text @click="resetForm">Reset</el-button>
         </div>
 
         <div class="scan-meta">
           <div>
-            <p class="text-faint">????</p>
+            <p class="text-faint">Current project</p>
             <strong>{{ projectLabel }}</strong>
           </div>
           <div v-if="lastTask">
-            <p class="text-faint">????</p>
+            <p class="text-faint">Latest task</p>
             <strong>#{{ lastTask.id }} ? {{ lastTask.status }}</strong>
           </div>
         </div>
@@ -114,8 +114,8 @@
           <div class="scan-progress__ring">
             <el-icon class="is-loading"><Loading /></el-icon>
           </div>
-          <h3>??????????</h3>
-          <p class="text-faint">?? {{ lastTask?.id }} ??????????????</p>
+          <h3>Scan is running in background</h3>
+          <p class="text-faint">Task {{ lastTask?.id }} queued. Status will refresh automatically.</p>
           <div class="progress-steps">
             <div
               v-for="(step, index) in progressSteps"
@@ -126,24 +126,24 @@
               <span>{{ step }}</span>
             </div>
           </div>
-          <el-button text :loading="scanStatusLoading" @click="refreshTaskStatus">??????</el-button>
+          <el-button text :loading="scanStatusLoading" @click="refreshTaskStatus">Refresh status</el-button>
         </div>
       </div>
 
       <aside class="scan-aside card-glass">
-        <h3>??</h3>
+        <h3>Tips</h3>
         <ul>
-          <li>???????? <code>scanners.yaml</code>?</li>
-          <li>??????????????????</li>
-          <li>???????????????</li>
+          <li>Scan profiles come from backend <code>scanners.yaml</code>.</li>
+          <li>Scans run async; status is polled.</li>
+          <li>Pick a project to organize results.</li>
         </ul>
         <div class="aside-meta">
           <div>
-            <p class="text-faint">????</p>
+            <p class="text-faint">Profiles</p>
             <strong>{{ scanConfigs.length }}</strong>
           </div>
           <div>
-            <p class="text-faint">????</p>
+            <p class="text-faint">Projects</p>
             <strong>{{ projects.length }}</strong>
           </div>
         </div>
@@ -195,14 +195,14 @@ const form = reactive<{
   project_id: null,
 })
 
-const progressSteps = ['??????', '????', '??????', '??']
+const progressSteps = ['Queued', 'Running', 'Parsing results', 'Completed']
 
 const projectLabel = computed(() => {
   const project = projects.value.find((item) => item.id === form.project_id)
   if (project) {
     return `${project.name} (#${project.id})`
   }
-  return '???'
+  return 'Not selected'
 })
 
 const progressStepIndex = computed(() => {
@@ -251,7 +251,7 @@ const handleCreateProject = async () => {
     projects.value = [project, ...projects.value]
     form.project_id = project.id
     newProjectName.value = ''
-    ElMessage.success(`??????${project.name}`)
+    ElMessage.success(`Project created: ${project.name}`)
   } catch (error) {
     ElMessage.error((error as Error).message)
   } finally {
@@ -276,7 +276,7 @@ const ensureProjectId = async () => {
   }
   const name = newProjectName.value.trim()
   if (!name) {
-    ElMessage.warning('????????')
+    ElMessage.warning('Please select or create a project')
     return null
   }
   const project = await createProject({ name })
@@ -339,11 +339,11 @@ const refreshTaskStatus = async (silent = false) => {
 const handleStartScan = async () => {
   const target = form.target.trim()
   if (!target) {
-    ElMessage.warning('???????')
+    ElMessage.warning('Please enter a target')
     return
   }
   if (!form.config_name) {
-    ElMessage.warning('???????')
+    ElMessage.warning('Please select a scan profile')
     return
   }
   scanSubmitting.value = true
@@ -356,7 +356,7 @@ const handleStartScan = async () => {
     const task = await triggerScan(assetId, { config_name: form.config_name })
     lastTask.value = task
     scanRunning.value = task.status === 'pending' || task.status === 'running'
-    ElMessage.success(`?? #${task.id} ???`)
+    ElMessage.success(`Task #${task.id} created`)
     startPolling()
   } catch (error) {
     ElMessage.error((error as Error).message)

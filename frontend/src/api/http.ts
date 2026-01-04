@@ -23,17 +23,21 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.message || error.message || '请求失败'
+    const message = error.response?.data?.message || error.response?.data?.detail || error.message || '请求失败'
     return Promise.reject(new Error(message))
   }
 )
 
 export async function request<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T> {
   const { data } = await promise
-  if (data.code !== 0) {
-    throw new Error(data.message || '请求失败')
+  if (data && typeof data === 'object' && 'code' in data) {
+    const payload = data as ApiResponse<T>
+    if (payload.code !== 0) {
+      throw new Error(payload.message || '请求失败')
+    }
+    return payload.data
   }
-  return data.data
+  return data as T
 }
 
 export default http
