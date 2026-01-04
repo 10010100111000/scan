@@ -2,8 +2,10 @@
 """
 API 路由：用于根资产 (Assets) 和触发扫描
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Body # 导入 Body
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query # 导入 Body
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from app.api import deps # 导入我们的依赖
 from app.data import models
@@ -38,6 +40,30 @@ async def list_scan_configs(
         for cfg in configs
         if isinstance(cfg, dict) and cfg.get("config_name")
     ]
+
+@router.get("/projects/{project_id}/assets", response_model=list[schemas.AssetRead])
+async def list_assets_for_project(
+    project_id: int,
+    skip: int = Query(0, ge=0, description="偏移量"),
+    limit: int = Query(20, ge=1, le=200, description="返回条目数"),
+    search: Optional[str] = Query(None, description="按资产名称模糊搜索"),
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    """
+    分页列出指定项目的根资产，支持名称搜索。
+    """
+    project = await db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"项目 ID {project_id} 不存在")
+
+    stmt = select(models.Asset).where(models.Asset.project_id == project_id)
+    if search:
+        stmt = stmt.where(models.Asset.name.ilike(f"%{search}%"))
+    stmt = stmt.order_by(models.Asset.id.desc()).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    assets = result.scalars().all()
+    return assets
 
 @router.post("/projects/{project_id}/assets", response_model=schemas.AssetRead, status_code=status.HTTP_201_CREATED)
 async def create_asset_for_project(
