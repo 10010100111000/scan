@@ -95,29 +95,13 @@
             </div>
           </div>
           <el-form :model="projectForm" label-width="100px" @submit.prevent>
-            <el-form-item label="选择项目">
-              <el-select
-                v-model="currentProjectId"
-                filterable
-                remote
-                clearable
-                placeholder="搜索或选择已有项目"
-                :remote-method="searchProjects"
-                :loading="projectListLoading"
-                @change="handleProjectSelect"
-              >
-                <el-option
-                  v-for="proj in projectOptions"
-                  :key="proj.id"
-                  :label="proj.name"
-                  :value="proj.id"
-                />
-              </el-select>
-            </el-form-item>
             <el-form-item label="项目名">
               <el-input v-model="projectForm.name" placeholder="如: security-lab" />
             </el-form-item>
             <el-button type="primary" :loading="projectLoading" @click="handleCreateProject">创建项目</el-button>
+            <p class="text-faint inline-tip">已有项目？直接输入 ID：
+              <el-input v-model.number="manualProjectId" style="width: 140px" size="small" />
+            </p>
           </el-form>
         </el-card>
 
@@ -130,25 +114,6 @@
             </div>
           </div>
           <el-form :model="assetForm" label-width="100px" @submit.prevent>
-            <el-form-item label="选择资产">
-              <el-select
-                v-model="currentAssetId"
-                :disabled="!currentProjectId"
-                filterable
-                remote
-                clearable
-                placeholder="搜索当前项目下资产"
-                :remote-method="searchAssets"
-                :loading="assetListLoading"
-              >
-                <el-option
-                  v-for="asset in assetOptions"
-                  :key="asset.id"
-                  :label="`${asset.name} · ${asset.type}`"
-                  :value="asset.id"
-                />
-              </el-select>
-            </el-form-item>
             <el-form-item label="资产类型">
               <el-select v-model="assetForm.type" placeholder="选择类型">
                 <el-option label="域名" value="domain" />
@@ -202,15 +167,12 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import {
   fetchScanConfigs,
-  listProjects,
-  listAssets,
   createProject,
   createAsset,
   triggerScan,
   listTasks,
   type Asset,
   type ScanTask,
-  type Project,
   type ScanConfigSummary,
 } from '@/api/scan'
 
@@ -223,18 +185,15 @@ const tasks = ref<ScanTask[]>([])
 const currentProjectId = ref<number | null>(null)
 const currentAssetId = ref<number | null>(null)
 const lastAsset = ref<Asset | null>(null)
-const projectOptions = ref<Project[]>([])
-const assetOptions = ref<Asset[]>([])
 
 const projectForm = reactive({ name: '' })
 const assetForm = reactive<{ name: string; type: 'domain' | 'cidr' | '' }>({ name: '', type: '' })
 const scanForm = reactive<{ config_name: string | '' }>({ config_name: '' })
+const manualProjectId = ref<number | null>(null)
 
 const projectLoading = ref(false)
 const assetLoading = ref(false)
 const scanLoading = ref(false)
-const projectListLoading = ref(false)
-const assetListLoading = ref(false)
 
 const projectIdDisplay = computed(() => currentProjectId.value ?? '未选择')
 
@@ -252,37 +211,6 @@ const loadConfigs = async () => {
   }
 }
 
-const loadProjects = async (search = '') => {
-  projectListLoading.value = true
-  try {
-    projectOptions.value = await listProjects({ limit: 20, search })
-  } catch (error) {
-    ElMessage.error((error as Error).message)
-  } finally {
-    projectListLoading.value = false
-  }
-}
-
-const searchProjects = async (query: string) => {
-  await loadProjects(query)
-}
-
-const loadAssets = async (projectId: number, search = '') => {
-  assetListLoading.value = true
-  try {
-    assetOptions.value = await listAssets(projectId, { limit: 50, search })
-  } catch (error) {
-    ElMessage.error((error as Error).message)
-  } finally {
-    assetListLoading.value = false
-  }
-}
-
-const searchAssets = async (query: string) => {
-  if (!currentProjectId.value) return
-  await loadAssets(currentProjectId.value, query)
-}
-
 const fetchTasks = async () => {
   try {
     tasks.value = await listTasks({ limit: 8 })
@@ -292,30 +220,24 @@ const fetchTasks = async () => {
 }
 
 const handleCreateProject = async () => {
-  if (!projectForm.name) {
-    ElMessage.warning('请输入项目名或选择已有项目')
+  if (!projectForm.name && !manualProjectId.value) {
+    ElMessage.warning('请输入项目名或指定已有项目 ID')
+    return
+  }
+  if (manualProjectId.value) {
+    currentProjectId.value = manualProjectId.value
+    ElMessage.success(`已选用项目 ID ${manualProjectId.value}`)
     return
   }
   projectLoading.value = true
   try {
     const project = await createProject({ name: projectForm.name })
     currentProjectId.value = project.id
-    await loadProjects()
     ElMessage.success(`项目已创建：${project.name}`)
-    await loadAssets(project.id)
   } catch (error) {
     ElMessage.error((error as Error).message)
   } finally {
     projectLoading.value = false
-  }
-}
-
-const handleProjectSelect = async () => {
-  assetOptions.value = []
-  currentAssetId.value = null
-  lastAsset.value = null
-  if (currentProjectId.value) {
-    await loadAssets(currentProjectId.value)
   }
 }
 
@@ -336,7 +258,6 @@ const handleCreateAsset = async () => {
     })
     currentAssetId.value = asset.id
     lastAsset.value = asset
-    await loadAssets(currentProjectId.value)
     ElMessage.success(`资产已创建：${asset.name}`)
   } catch (error) {
     ElMessage.error((error as Error).message)
@@ -396,7 +317,6 @@ const statusTag = (status: ScanTask['status']) => {
 const formatTime = (v?: string | null) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—')
 
 onMounted(async () => {
-  await loadProjects()
   await loadConfigs()
   await fetchTasks()
 })

@@ -14,7 +14,7 @@
             </el-icon>
           </el-button>
         </div>
-        <el-button class="new-scan" type="primary" plain block @click="goScan">
+        <el-button class="new-scan" type="primary" plain block>
           <el-icon><Plus /></el-icon>
           <span v-if="!railCollapsed">+ 新建扫描</span>
         </el-button>
@@ -352,10 +352,6 @@ const handleLogout = async () => {
   router.replace({ name: 'Login' })
 }
 
-const goScan = () => {
-  router.push({ name: 'Scan' })
-}
-
 const isActive = (navRoute: RouteLocationRaw) => router.resolve(navRoute).href === route.fullPath
 
 onMounted(async () => {
@@ -486,6 +482,10 @@ onMounted(async () => {
   border-radius: 16px;
 }
 
+.header-hint {
+  margin-top: 6px;
+}
+
 .user-area {
   display: flex;
   align-items: center;
@@ -495,12 +495,8 @@ onMounted(async () => {
 .user-meta {
   display: flex;
   flex-direction: column;
-  min-width: 120px;
   align-items: flex-end;
-}
-
-.header-hint {
-  margin-top: 6px;
+  min-width: 160px;
 }
 
 .kpi-grid {
@@ -510,25 +506,33 @@ onMounted(async () => {
 }
 
 .kpi-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: 56px 1fr;
   gap: 12px;
   padding: 14px;
   border-radius: 14px;
 }
 
 .kpi-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  color: #e2e8f0;
+}
+
+.kpi-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .kpi-value-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 4px 0;
 }
 
 .kpi-value {
@@ -537,17 +541,18 @@ onMounted(async () => {
 
 .kpi-sub {
   margin: 0;
-  color: #cbd5e1;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 .panel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
 }
 
 .panel-grid.lower {
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
 }
 
 .panel {
@@ -559,26 +564,32 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
-.panel-body.tasks {
+.panel-header h3 {
+  margin: 4px 0 0;
+}
+
+.panel-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.task-item {
+.tasks .task-item {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .task-meta h4 {
-  margin: 0;
+  margin: 0 0 6px;
 }
 
 .task-progress {
@@ -590,83 +601,106 @@ onMounted(async () => {
 .task-tags {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
-.asset-table {
-  background: rgba(255, 255, 255, 0.01);
-  border-radius: 12px;
-  padding: 4px;
+.asset-table :deep(.el-table) {
+  background: transparent;
+  color: #e2e8f0;
+}
+
+.asset-table :deep(.el-table th),
+.asset-table :deep(.el-table tr) {
+  background-color: transparent;
+}
+
+.asset-table :deep(.el-table__body-wrapper) {
+  background: transparent;
 }
 
 .tag-row {
   display: flex;
   gap: 6px;
-}
-
-.findings {
-  min-height: 300px;
+  flex-wrap: wrap;
 }
 
 .findings-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .finding-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  gap: 10px;
   padding: 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  align-items: center;
 }
 
 .finding-severity {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: #fee2e2;
 }
 
 .finding-severity.critical {
-  background: rgba(248, 113, 113, 0.14);
-  color: #fecaca;
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(239, 68, 68, 0.08));
 }
 
 .finding-severity.major {
-  background: rgba(251, 191, 36, 0.14);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(234, 179, 8, 0.08));
   color: #fef3c7;
+}
+
+.finding-content h4 {
+  margin: 0 0 6px;
 }
 
 .finding-tags {
   display: flex;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.pulse {
-  max-height: 340px;
-  overflow: auto;
+.pulse :deep(.el-timeline-item__content) {
+  color: #e2e8f0;
+}
+
+.pulse :deep(.el-timeline-item__timestamp) {
+  color: #94a3b8;
 }
 
 .right-rail {
+  position: sticky;
+  top: 16px;
+  align-self: start;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .rail-card {
-  padding: 14px;
-  border-radius: 14px;
+  padding: 16px;
+  border-radius: 16px;
 }
 
 .filter-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 12px 0;
+  margin-bottom: 10px;
+}
+
+.filter-tag {
+  padding: 8px 12px;
 }
 
 .queue-list {
@@ -679,9 +713,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .links {
@@ -694,36 +729,83 @@ onMounted(async () => {
 }
 
 .links li {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
   gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
   align-items: center;
+}
+
+.links p {
+  margin: 0;
 }
 
 .card-glass {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
 }
 
-@media (max-width: 1200px) {
+.text-faint {
+  color: #9ca3af;
+}
+
+.hero-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-grid {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .right-rail {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .dashboard-page {
+    padding: 16px;
+  }
+
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
 
-  .nav-rail,
-  .right-rail {
-    position: relative;
+  .nav-rail {
     height: auto;
+    position: relative;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
   }
 
-  .nav-rail,
-  .right-rail,
-  .main-area {
+  .nav-rail.collapsed {
     width: 100%;
   }
 
-  .panel-grid,
-  .panel-grid.lower {
+  .nav-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .nav-item {
+    flex: 1 1 120px;
+  }
+
+  .nav-rail.collapsed .nav-item {
+    flex: 0 0 60px;
+  }
+
+  .tasks .task-item {
     grid-template-columns: 1fr;
   }
 }
