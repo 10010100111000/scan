@@ -30,6 +30,46 @@ export interface ScanTask {
   log?: string | null
 }
 
+export interface HostSummary {
+  id: number
+  hostname: string
+  status: string
+  created_at: string
+  ips: string[]
+  is_bookmarked: boolean
+  project_id: number
+  root_asset_id: number
+}
+
+export interface HostListResponse {
+  items: HostSummary[]
+  next_cursor: number | null
+  has_more: boolean
+  limit: number
+}
+
+export interface PortSummary {
+  id: number
+  ip: string
+  port: number
+  service?: string | null
+}
+
+export interface HTTPServiceSummary {
+  id: number
+  url: string
+  title?: string | null
+  tech?: string | null
+  status?: number | null
+}
+
+export interface VulnerabilitySummary {
+  id: number
+  name: string
+  severity: string
+  url?: string | null
+}
+
 export async function fetchScanConfigs() {
   return request<ScanConfigSummary[]>(http.get('/scan-configs'))
 }
@@ -60,6 +100,34 @@ export async function fetchAssetsForProject(
 
 export async function fetchTask(taskId: number) {
   return request<ScanTask>(http.get(`/tasks/${taskId}`))
+}
+
+export async function fetchAssetHosts(
+  assetId: number,
+  params: { limit?: number; cursor?: number | null } = {}
+) {
+  return request<HostListResponse>(http.get(`/results/assets/${assetId}/hosts`, { params }))
+}
+
+export async function fetchAssetPorts(
+  assetId: number,
+  params: { skip?: number; limit?: number } = {}
+) {
+  return request<PortSummary[]>(http.get(`/results/assets/${assetId}/ports`, { params }))
+}
+
+export async function fetchAssetWeb(
+  assetId: number,
+  params: { skip?: number; limit?: number } = {}
+) {
+  return request<HTTPServiceSummary[]>(http.get(`/results/assets/${assetId}/web`, { params }))
+}
+
+export async function fetchAssetVulns(
+  assetId: number,
+  params: { skip?: number; limit?: number } = {}
+) {
+  return request<VulnerabilitySummary[]>(http.get(`/results/assets/${assetId}/vulns`, { params }))
 }
 
 export async function listTasks(params: Record<string, unknown> = {}) {
