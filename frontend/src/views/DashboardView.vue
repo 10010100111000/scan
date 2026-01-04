@@ -429,7 +429,7 @@ watch(scanOverlayOpen, (isOpen) => {
 .dashboard-grid {
   position: relative;
   display: grid;
-  grid-template-columns: 260px 1fr 320px;
+  grid-template-columns: minmax(84px, 260px) minmax(0, 1fr) minmax(0, 320px);
   gap: 16px;
   z-index: 1;
 }
@@ -445,11 +445,12 @@ watch(scanOverlayOpen, (isOpen) => {
   flex-direction: column;
   gap: 16px;
   transition: width 0.2s ease, padding 0.2s ease;
-  width: 260px;
+  width: 100%;
 }
 
 .nav-rail.collapsed {
-  width: 84px;
+  width: 100%;
+  max-width: 84px;
   padding: 16px 12px;
 }
 
@@ -878,7 +879,7 @@ watch(scanOverlayOpen, (isOpen) => {
 
 @media (max-width: 1280px) {
   .dashboard-grid {
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: minmax(84px, 220px) minmax(0, 1fr);
   }
 
   .right-rail {

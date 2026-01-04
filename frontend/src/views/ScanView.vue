@@ -2,9 +2,9 @@
   <div class="scan-view">
     <header class="scan-view__header">
       <div>
-        <p class="eyebrow">NEW SCAN</p>
-        <h2>Launch a scan</h2>
-        <p class="subtitle">Pick a project, target, and scan profile. Tasks run in background.</p>
+        <p class="eyebrow">{{ copy.headerEyebrow }}</p>
+        <h2>{{ copy.headerTitle }}</h2>
+        <p class="subtitle">{{ copy.headerSubtitle }}</p>
       </div>
     </header>
 
@@ -12,13 +12,13 @@
       <div class="scan-panel card-glass">
         <div class="form-grid">
           <div class="field">
-            <label class="field-label">Project</label>
+            <label class="field-label">{{ copy.projectLabel }}</label>
             <el-select
               v-model="form.project_id"
               filterable
               remote
               clearable
-              placeholder="Select or search project"
+              :placeholder="copy.projectPlaceholder"
               class="full-width"
               :remote-method="searchProjects"
               :loading="projectsLoading"
@@ -31,13 +31,13 @@
               />
             </el-select>
             <div class="field-actions">
-              <el-button text size="small" @click="loadProjects">Refresh projects</el-button>
+              <el-button text size="small" @click="loadProjects">{{ copy.refreshProjects }}</el-button>
             </div>
           </div>
           <div class="field">
-            <label class="field-label">Create project (optional)</label>
+            <label class="field-label">{{ copy.createProjectLabel }}</label>
             <div class="inline-row">
-              <el-input v-model="newProjectName" clearable placeholder="Project name" />
+              <el-input v-model="newProjectName" clearable :placeholder="copy.projectNamePlaceholder" />
               <el-button
                 type="primary"
                 plain
@@ -45,14 +45,14 @@
                 :loading="projectCreating"
                 @click="handleCreateProject"
               >
-                Create
+                {{ copy.createButton }}
               </el-button>
             </div>
           </div>
         </div>
 
         <div class="search-box">
-          <el-input v-model="form.target" size="large" clearable placeholder="Domain / IP / CIDR">
+          <el-input v-model="form.target" size="large" clearable :placeholder="copy.targetPlaceholder">
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
@@ -61,18 +61,18 @@
 
         <div class="form-grid">
           <div class="field">
-            <label class="field-label">Scan profile</label>
+            <label class="field-label">{{ copy.scanProfileLabel }}</label>
             <el-select
               v-model="form.config_name"
               filterable
-              placeholder="Select scan profile"
+              :placeholder="copy.scanProfilePlaceholder"
               class="full-width"
               :loading="scanConfigsLoading"
             >
               <el-option v-for="cfg in scanConfigs" :key="cfg.name" :label="cfg.name" :value="cfg.name">
                 <div class="option-row">
                   <strong>{{ cfg.name }}</strong>
-                  <span class="text-faint">{{ cfg.description || 'No description' }}</span>
+                  <span class="text-faint">{{ cfg.description || copy.noDescription }}</span>
                 </div>
               </el-option>
             </el-select>
@@ -87,22 +87,22 @@
             :disabled="!form.target || !form.config_name || scanSubmitting"
             @click="handleStartScan"
           >
-            Start scan
+            {{ copy.startScan }}
           </el-button>
-          <el-button text @click="resetForm">Reset</el-button>
+          <el-button text @click="resetForm">{{ copy.reset }}</el-button>
         </div>
 
         <div class="scan-meta">
           <div>
-            <p class="text-faint">Current project</p>
+            <p class="text-faint">{{ copy.currentProject }}</p>
             <strong>{{ projectLabel }}</strong>
           </div>
           <div>
-            <p class="text-faint">Target</p>
+            <p class="text-faint">{{ copy.targetLabel }}</p>
             <strong>{{ currentTargetLabel }}</strong>
           </div>
           <div v-if="lastTask">
-            <p class="text-faint">Latest task</p>
+            <p class="text-faint">{{ copy.latestTask }}</p>
             <strong>#{{ lastTask.id }} ? {{ lastTask.status }}</strong>
           </div>
         </div>
@@ -111,8 +111,8 @@
           <div class="scan-progress__ring">
             <el-icon class="is-loading"><Loading /></el-icon>
           </div>
-          <h3>Scan is running in background</h3>
-          <p class="text-faint">Task {{ lastTask?.id }} queued. Status will refresh automatically.</p>
+          <h3>{{ copy.scanRunningTitle }}</h3>
+          <p class="text-faint">{{ copy.scanRunningDesc.replace('{id}', String(lastTask?.id ?? '')) }}</p>
           <div class="progress-steps">
             <div
               v-for="(step, index) in progressSteps"
@@ -123,52 +123,52 @@
               <span>{{ step }}</span>
             </div>
           </div>
-          <el-button text :loading="scanStatusLoading" @click="refreshTaskStatus">Refresh status</el-button>
+          <el-button text :loading="scanStatusLoading" @click="refreshTaskStatus">{{ copy.refreshStatus }}</el-button>
         </div>
 
         <div class="divider"></div>
 
         <div class="results-header">
           <div>
-            <p class="eyebrow">RESULTS</p>
-            <h3>Scan outputs</h3>
-            <p class="text-faint">Refresh after completion to pull newest data.</p>
+            <p class="eyebrow">{{ copy.resultsEyebrow }}</p>
+            <h3>{{ copy.resultsTitle }}</h3>
+            <p class="text-faint">{{ copy.resultsHint }}</p>
           </div>
           <div class="results-actions">
-            <el-button size="small" :loading="resultsLoading" @click="refreshResults">Refresh results</el-button>
-            <el-button size="small" text @click="clearResults">Clear</el-button>
+            <el-button size="small" :loading="resultsLoading" @click="refreshResults">{{ copy.refreshResults }}</el-button>
+            <el-button size="small" text @click="clearResults">{{ copy.clearResults }}</el-button>
           </div>
         </div>
 
         <div class="results-summary">
           <div class="summary-card">
-            <p class="text-faint">Subdomains</p>
+            <p class="text-faint">{{ copy.summarySubdomains }}</p>
             <strong>{{ hosts.length }}</strong>
           </div>
           <div class="summary-card">
-            <p class="text-faint">Open ports</p>
+            <p class="text-faint">{{ copy.summaryPorts }}</p>
             <strong>{{ ports.length }}</strong>
           </div>
           <div class="summary-card">
-            <p class="text-faint">Web services</p>
+            <p class="text-faint">{{ copy.summaryWeb }}</p>
             <strong>{{ webServices.length }}</strong>
           </div>
           <div class="summary-card">
-            <p class="text-faint">Vulnerabilities</p>
+            <p class="text-faint">{{ copy.summaryVulns }}</p>
             <strong>{{ vulnerabilities.length }}</strong>
           </div>
         </div>
 
         <el-tabs v-model="resultsTab" class="results-tabs" @tab-change="handleTabChange">
-          <el-tab-pane label="Subdomains" name="hosts">
+          <el-tab-pane :label="copy.tabSubdomains" name="hosts">
             <div v-if="hosts.length === 0" class="empty-wrap">
-              <el-empty description="No subdomains yet" />
+              <el-empty :description="copy.emptySubdomains" />
             </div>
             <div v-else class="result-list">
               <div v-for="host in hosts" :key="host.id" class="result-row">
                 <div>
                   <strong>{{ host.hostname }}</strong>
-                  <p class="text-faint">{{ host.ips.join(', ') || 'No IP mapped' }}</p>
+                  <p class="text-faint">{{ host.ips.join(', ') || copy.noIpMapped }}</p>
                 </div>
                 <div class="result-meta">
                   <el-tag size="small" effect="plain">{{ host.status }}</el-tag>
@@ -176,13 +176,13 @@
                 </div>
               </div>
               <div v-if="hostsHasMore" class="load-more">
-                <el-button text :loading="hostsLoading" @click="loadMoreHosts">Load more</el-button>
+                <el-button text :loading="hostsLoading" @click="loadMoreHosts">{{ copy.loadMore }}</el-button>
               </div>
             </div>
           </el-tab-pane>
-          <el-tab-pane label="Ports" name="ports">
+          <el-tab-pane :label="copy.tabPorts" name="ports">
             <div v-if="ports.length === 0" class="empty-wrap">
-              <el-empty description="No ports yet" />
+              <el-empty :description="copy.emptyPorts" />
             </div>
             <div v-else class="result-list">
               <div v-for="port in ports" :key="port.id" class="result-row">
@@ -193,16 +193,16 @@
               </div>
             </div>
           </el-tab-pane>
-          <el-tab-pane label="Web" name="web">
+          <el-tab-pane :label="copy.tabWeb" name="web">
             <div v-if="webServices.length === 0" class="empty-wrap">
-              <el-empty description="No web services yet" />
+              <el-empty :description="copy.emptyWeb" />
             </div>
             <div v-else class="result-list">
               <div v-for="service in webServices" :key="service.id" class="result-row">
                 <div>
                   <strong>{{ service.url }}</strong>
-                  <p class="text-faint">{{ service.title || 'Untitled' }}</p>
-                  <p class="text-faint">{{ service.tech || 'No tech fingerprint' }}</p>
+                  <p class="text-faint">{{ service.title || copy.untitled }}</p>
+                  <p class="text-faint">{{ service.tech || copy.noTech }}</p>
                 </div>
                 <div class="result-meta">
                   <el-tag size="small" effect="plain">{{ service.status || 'n/a' }}</el-tag>
@@ -210,15 +210,15 @@
               </div>
             </div>
           </el-tab-pane>
-          <el-tab-pane label="Vulns" name="vulns">
+          <el-tab-pane :label="copy.tabVulns" name="vulns">
             <div v-if="vulnerabilities.length === 0" class="empty-wrap">
-              <el-empty description="No vulnerabilities yet" />
+              <el-empty :description="copy.emptyVulns" />
             </div>
             <div v-else class="result-list">
               <div v-for="vuln in vulnerabilities" :key="vuln.id" class="result-row">
                 <div>
                   <strong>{{ vuln.name }}</strong>
-                  <p class="text-faint">{{ vuln.url || 'No target' }}</p>
+                  <p class="text-faint">{{ vuln.url || copy.noTarget }}</p>
                 </div>
                 <div class="result-meta">
                   <el-tag :type="severityType(vuln.severity)" size="small" effect="dark">{{ vuln.severity }}</el-tag>
@@ -230,19 +230,19 @@
       </div>
 
       <aside class="scan-aside card-glass">
-        <h3>Tips</h3>
+        <h3>{{ copy.tipsTitle }}</h3>
         <ul>
-          <li>Scan profiles come from backend <code>scanners.yaml</code>.</li>
-          <li>Subfinder output appears in Subdomains tab.</li>
-          <li>Pick a project to organize all findings.</li>
+          <li>{{ copy.tipProfiles }} <code>scanners.yaml</code>?</li>
+          <li>{{ copy.tipSubfinder }}</li>
+          <li>{{ copy.tipProject }}</li>
         </ul>
         <div class="aside-meta">
           <div>
-            <p class="text-faint">Profiles</p>
+            <p class="text-faint">{{ copy.summaryProfiles }}</p>
             <strong>{{ scanConfigs.length }}</strong>
           </div>
           <div>
-            <p class="text-faint">Projects</p>
+            <p class="text-faint">{{ copy.summaryProjects }}</p>
             <strong>{{ projects.length }}</strong>
           </div>
         </div>
@@ -278,6 +278,70 @@ import {
   type VulnerabilitySummary,
 } from '@/api/scan'
 
+const copy = {
+  headerEyebrow: '新建扫描',
+  headerTitle: '发起扫描',
+  headerSubtitle: '选择项目、目标与 Scan profile，任务在后台执行。',
+  projectLabel: '项目',
+  projectPlaceholder: '选择或搜索项目',
+  refreshProjects: '刷新项目',
+  createProjectLabel: '新建项目（可选）',
+  projectNamePlaceholder: '项目名称',
+  createButton: '创建',
+  targetPlaceholder: '域名 / IP / CIDR',
+  scanProfileLabel: 'Scan profile',
+  scanProfilePlaceholder: '选择 Scan profile',
+  noDescription: '暂无描述',
+  startScan: '开始扫描',
+  reset: '重置',
+  currentProject: '当前项目',
+  targetLabel: '目标',
+  latestTask: '最近任务',
+  scanRunningTitle: '扫描任务正在后台执行',
+  scanRunningDesc: '任务 {id} 已排队，系统将自动刷新状态。',
+  refreshStatus: '刷新状态',
+  resultsEyebrow: '结果',
+  resultsTitle: '扫描结果',
+  resultsHint: '扫描完成后刷新以获取最新数据。',
+  refreshResults: '刷新结果',
+  clearResults: '清空',
+  summarySubdomains: '子域名',
+  summaryPorts: '开放端口',
+  summaryWeb: 'Web 服务',
+  summaryVulns: '漏洞',
+  tabSubdomains: '子域名',
+  tabPorts: '端口',
+  tabWeb: 'Web',
+  tabVulns: '漏洞',
+  emptySubdomains: '暂无子域名',
+  emptyPorts: '暂无端口',
+  emptyWeb: '暂无 Web 服务',
+  emptyVulns: '暂无漏洞',
+  noIpMapped: '未解析到 IP',
+  loadMore: '加载更多',
+  untitled: '无标题',
+  noTech: '无技术指纹',
+  noTarget: '无目标',
+  tipsTitle: '提示',
+  tipProfiles: 'Scan profile 来自后端',
+  tipSubfinder: 'Subfinder 结果展示在「子域名」标签。',
+  tipProject: '建议选择项目以归类结果。',
+  summaryProfiles: '配置数',
+  summaryProjects: '项目数',
+  msgProjectCreated: '项目已创建：',
+  msgSelectProject: '请选择或创建项目',
+  msgEnterTarget: '请输入目标',
+  msgSelectProfile: '请选择 Scan profile',
+  msgTaskCreated: '任务 #',
+  msgTaskCreatedSuffix: ' 已创建',
+  msgNoAsset: '尚未选择资产',
+  msgFoundExisting: '已在项目 #',
+  msgFoundExistingSuffix: ' 找到资产，直接加载结果。',
+  progressSteps: ['排队中', '扫描中', '解析入库', '完成'],
+  notSelected: '未选择',
+  notSet: '未设置',
+}
+
 const scanConfigs = ref<ScanConfigSummary[]>([])
 const scanConfigsLoading = ref(false)
 const scanSubmitting = ref(false)
@@ -305,7 +369,7 @@ const form = reactive<{
   project_id: null,
 })
 
-const progressSteps = ['Queued', 'Running', 'Parsing results', 'Completed']
+const progressSteps = copy.progressSteps
 
 const resultsTab = ref<'hosts' | 'ports' | 'web' | 'vulns'>('hosts')
 const resultsLoading = ref(false)
@@ -322,10 +386,10 @@ const projectLabel = computed(() => {
   if (project) {
     return `${project.name} (#${project.id})`
   }
-  return 'Not selected'
+  return copy.notSelected
 })
 
-const currentTargetLabel = computed(() => currentTarget.value || 'Not set')
+const currentTargetLabel = computed(() => currentTarget.value || copy.notSet)
 
 const progressStepIndex = computed(() => {
   if (!lastTask.value) {
@@ -357,7 +421,7 @@ const detectAssetType = (target: string) => {
   if (value.includes('/')) {
     return 'cidr'
   }
-  const ipv4Regex = /^(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}$/
+  const ipv4Regex = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
   if (ipv4Regex.test(value)) {
     return 'cidr'
   }
@@ -407,7 +471,7 @@ const handleCreateProject = async () => {
     projects.value = [project, ...projects.value]
     form.project_id = project.id
     newProjectName.value = ''
-    ElMessage.success(`Project created: ${project.name}`)
+    ElMessage.success(`${copy.msgProjectCreated}${project.name}`)
   } catch (error) {
     ElMessage.error((error as Error).message)
   } finally {
@@ -432,7 +496,7 @@ const ensureProjectId = async () => {
   }
   const name = newProjectName.value.trim()
   if (!name) {
-    ElMessage.warning('Please select or create a project')
+    ElMessage.warning(copy.msgSelectProject)
     return null
   }
   const project = await createProject({ name })
@@ -551,7 +615,7 @@ const loadVulns = async () => {
 
 const refreshResults = async () => {
   if (!currentAssetId.value) {
-    ElMessage.warning('No asset selected yet')
+    ElMessage.warning(copy.msgNoAsset)
     return
   }
   resultsLoading.value = true
@@ -597,11 +661,11 @@ const handleStartScan = async () => {
   const rawTarget = form.target.trim()
   const normalizedTarget = rawTarget.replace(/\.+$/, '').toLowerCase()
   if (!normalizedTarget) {
-    ElMessage.warning('Please enter a target')
+    ElMessage.warning(copy.msgEnterTarget)
     return
   }
   if (!form.config_name) {
-    ElMessage.warning('Please select a scan profile')
+    ElMessage.warning(copy.msgSelectProfile)
     return
   }
   scanSubmitting.value = true
@@ -616,7 +680,7 @@ const handleStartScan = async () => {
       lastTask.value = null
       lastTaskStatus.value = null
       await refreshResults()
-      ElMessage.success(`Found existing asset in project #${asset.project_id}. Results loaded.`)
+      ElMessage.success(`${copy.msgFoundExisting}${asset.project_id}${copy.msgFoundExistingSuffix}`)
       return
     }
     const projectId = await ensureProjectId()
@@ -630,7 +694,7 @@ const handleStartScan = async () => {
     lastTask.value = task
     lastTaskStatus.value = task.status
     scanRunning.value = task.status === 'pending' || task.status === 'running'
-    ElMessage.success(`Task #${task.id} created`)
+    ElMessage.success(`${copy.msgTaskCreated}${task.id}${copy.msgTaskCreatedSuffix}`)
     startPolling()
   } catch (error) {
     ElMessage.error((error as Error).message)
