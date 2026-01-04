@@ -6,8 +6,36 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'Home',
-      redirect: { name: 'Dashboard' },
+      component: () => import('@/layouts/AppShellLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'Home',
+          redirect: { name: 'Dashboard' },
+        },
+        {
+          path: 'dashboard',
+          name: 'Dashboard',
+          component: () => import('@/views/DashboardView.vue'),
+          meta: { showRightRail: true },
+        },
+        {
+          path: 'tasks',
+          name: 'Tasks',
+          component: () => import('@/views/TasksView.vue'),
+        },
+        {
+          path: 'assets',
+          name: 'Assets',
+          component: () => import('@/views/AssetsView.vue'),
+        },
+        {
+          path: 'results',
+          name: 'Results',
+          component: () => import('@/views/ResultsView.vue'),
+        },
+      ],
     },
     {
       path: '/setup',
@@ -19,18 +47,6 @@ const router = createRouter({
       path: '/login',
       name: 'Login',
       component: () => import('@/views/LoginView.vue'),
-    },
-    {
-      path: '/scan',
-      name: 'Scan',
-      component: () => import('@/views/ScanView.vue'),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/dashboard',
-      name: 'Dashboard',
-      component: () => import('@/views/DashboardView.vue'),
-      meta: { requiresAuth: true },
     },
   ],
 })
