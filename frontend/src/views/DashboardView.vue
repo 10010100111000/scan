@@ -14,7 +14,7 @@
             </el-icon>
           </el-button>
         </div>
-        <el-button class="new-scan" type="primary" plain block @click="goScan">
+        <el-button class="new-scan" type="primary" plain block>
           <el-icon><Plus /></el-icon>
           <span v-if="!railCollapsed">+ 新建扫描</span>
         </el-button>
@@ -350,10 +350,6 @@ const refreshUser = async () => {
 const handleLogout = async () => {
   await auth.logout()
   router.replace({ name: 'Login' })
-}
-
-const goScan = () => {
-  router.push({ name: 'Scan' })
 }
 
 const isActive = (navRoute: RouteLocationRaw) => router.resolve(navRoute).href === route.fullPath

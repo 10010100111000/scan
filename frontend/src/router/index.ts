@@ -26,12 +26,6 @@ const router = createRouter({
       component: () => import('@/views/DashboardView.vue'),
       meta: { requiresAuth: true },
     },
-    {
-      path: '/scan',
-      name: 'Scan',
-      component: () => import('@/views/ScanView.vue'),
-      meta: { requiresAuth: true },
-    },
   ],
 })
 
