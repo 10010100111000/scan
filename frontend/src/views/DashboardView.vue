@@ -14,7 +14,7 @@
             </el-icon>
           </el-button>
         </div>
-        <el-button class="new-scan" type="primary" plain block>
+        <el-button class="new-scan" type="primary" plain block @click="goScan">
           <el-icon><Plus /></el-icon>
           <span v-if="!railCollapsed">+ 新建扫描</span>
         </el-button>
@@ -257,6 +257,8 @@ const router = useRouter()
 const route = useRoute()
 const userInfo = computed(() => auth.userInfo)
 const railCollapsed = ref(false)
+const goScan = () => router.push({ name: 'Scan' })
+
 
 const navLinks: Array<{ label: string; icon: Component; route: RouteLocationRaw }> = [
   { label: '仪表盘', icon: DataBoard, route: { name: 'Dashboard' } },
