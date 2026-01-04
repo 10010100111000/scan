@@ -77,13 +77,6 @@
               </el-option>
             </el-select>
           </div>
-          <div class="field">
-            <label class="field-label">Target type</label>
-            <el-select v-model="form.asset_type" placeholder="Select type" class="full-width">
-              <el-option label="Domain" value="domain" />
-              <el-option label="CIDR" value="cidr" />
-            </el-select>
-          </div>
         </div>
 
         <div class="actions">
@@ -274,6 +267,7 @@ import {
   fetchProjects,
   fetchScanConfigs,
   fetchTask,
+  searchAssetsByName,
   triggerScan,
   type HostSummary,
   type HTTPServiceSummary,
@@ -304,12 +298,10 @@ let pollTimer: number | null = null
 const form = reactive<{
   target: string
   config_name: string
-  asset_type: 'domain' | 'cidr'
   project_id: number | null
 }>({
   target: '',
   config_name: '',
-  asset_type: 'domain',
   project_id: null,
 })
 
@@ -356,6 +348,24 @@ const progressStepIndex = computed(() => {
 const projectOptionLabel = (project: Project) => `${project.name} (#${project.id})`
 
 const formatTime = (value?: string | null) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : 'n/a')
+
+const detectAssetType = (target: string) => {
+  const value = target.trim()
+  if (!value) {
+    return 'domain'
+  }
+  if (value.includes('/')) {
+    return 'cidr'
+  }
+  const ipv4Regex = /^(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}$/
+  if (ipv4Regex.test(value)) {
+    return 'cidr'
+  }
+  if (value.includes(':')) {
+    return 'cidr'
+  }
+  return 'domain'
+}
 
 const severityType = (severity: string) => {
   switch (severity) {
@@ -434,11 +444,12 @@ const ensureProjectId = async () => {
 
 const resolveAssetId = async (projectId: number, target: string) => {
   const assets = await fetchAssetsForProject(projectId, { search: target, limit: 5 })
-  const existing = assets.find((asset) => asset.name === target)
+  const targetKey = target.toLowerCase()
+  const existing = assets.find((asset) => asset.name.toLowerCase() === targetKey)
   if (existing) {
     return existing.id
   }
-  const asset = await createAsset(projectId, { name: target, type: form.asset_type })
+  const asset = await createAsset(projectId, { name: target, type: detectAssetType(target) })
   return asset.id
 }
 
@@ -583,8 +594,9 @@ const handleTabChange = async (name: string | number) => {
 }
 
 const handleStartScan = async () => {
-  const target = form.target.trim()
-  if (!target) {
+  const rawTarget = form.target.trim()
+  const normalizedTarget = rawTarget.replace(/\.+$/, '').toLowerCase()
+  if (!normalizedTarget) {
     ElMessage.warning('Please enter a target')
     return
   }
@@ -594,13 +606,26 @@ const handleStartScan = async () => {
   }
   scanSubmitting.value = true
   try {
+    const existingAssets = await searchAssetsByName(normalizedTarget, 1)
+    if (existingAssets.length > 0) {
+      const asset = existingAssets[0]
+      currentAssetId.value = asset.id
+      currentTarget.value = asset.name
+      form.project_id = asset.project_id
+      scanRunning.value = false
+      lastTask.value = null
+      lastTaskStatus.value = null
+      await refreshResults()
+      ElMessage.success(`Found existing asset in project #${asset.project_id}. Results loaded.`)
+      return
+    }
     const projectId = await ensureProjectId()
     if (!projectId) {
       return
     }
-    const assetId = await resolveAssetId(projectId, target)
+    const assetId = await resolveAssetId(projectId, normalizedTarget)
     currentAssetId.value = assetId
-    currentTarget.value = target
+    currentTarget.value = normalizedTarget
     const task = await triggerScan(assetId, { config_name: form.config_name })
     lastTask.value = task
     lastTaskStatus.value = task.status
@@ -617,7 +642,6 @@ const handleStartScan = async () => {
 const resetForm = () => {
   form.target = ''
   form.config_name = ''
-  form.asset_type = 'domain'
 }
 
 onMounted(async () => {

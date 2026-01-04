@@ -68,6 +68,9 @@ class AssetRead(AssetBase, OrmModel):
     project_id: int
     created_at: datetime
 
+class AssetSearchRead(AssetRead):
+    project_name: Optional[str] = None
+
 # --- IPAddress Schemas ---
 
 class IPAddressBase(BaseModel):

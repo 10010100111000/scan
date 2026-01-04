@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query # 导入 Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 
 from app.api import deps # 导入我们的依赖
 from app.data import models
@@ -40,6 +41,41 @@ async def list_scan_configs(
         for cfg in configs
         if isinstance(cfg, dict) and cfg.get("config_name")
     ]
+
+@router.get("/assets/search", response_model=list[schemas.AssetSearchRead])
+async def search_assets_by_name(
+    name: str = Query(..., description="??????????"),
+    limit: int = Query(10, ge=1, le=100, description="?????"),
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    """
+    ?????????????????????????
+    """
+    normalized = name.strip().lower().rstrip(".")
+    if not normalized:
+        return []
+    stmt = (
+        select(models.Asset, models.Project)
+        .join(models.Project, models.Asset.project_id == models.Project.id)
+        .where(func.lower(models.Asset.name) == normalized)
+        .order_by(models.Asset.id.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    return [
+        schemas.AssetSearchRead(
+            id=asset.id,
+            name=asset.name,
+            type=asset.type,
+            project_id=asset.project_id,
+            created_at=asset.created_at,
+            project_name=project.name,
+        )
+        for asset, project in rows
+    ]
+
 
 @router.get("/projects/{project_id}/assets", response_model=list[schemas.AssetRead])
 async def list_assets_for_project(

@@ -20,6 +20,10 @@ export interface Asset {
   created_at: string
 }
 
+export interface AssetSearchResult extends Asset {
+  project_name?: string | null
+}
+
 export interface ScanTask {
   id: number
   status: 'pending' | 'running' | 'completed' | 'failed'
@@ -100,6 +104,10 @@ export async function fetchAssetsForProject(
 
 export async function fetchTask(taskId: number) {
   return request<ScanTask>(http.get(`/tasks/${taskId}`))
+}
+
+export async function searchAssetsByName(name: string, limit = 10) {
+  return request<AssetSearchResult[]>(http.get('/assets/search', { params: { name, limit } }))
 }
 
 export async function fetchAssetHosts(
