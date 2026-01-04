@@ -34,6 +34,10 @@ export async function fetchScanConfigs() {
   return request<ScanConfigSummary[]>(http.get('/scan-configs'))
 }
 
+export async function fetchProjects(params: { skip?: number; limit?: number; search?: string } = {}) {
+  return request<Project[]>(http.get('/projects', { params }))
+}
+
 export async function createProject(payload: { name: string }) {
   return request<Project>(http.post('/projects', payload))
 }
@@ -44,6 +48,18 @@ export async function createAsset(projectId: number, payload: { name: string; ty
 
 export async function triggerScan(assetId: number, payload: { config_name: string }) {
   return request<ScanTask>(http.post(`/assets/${assetId}/scan`, payload))
+}
+
+
+export async function fetchAssetsForProject(
+  projectId: number,
+  params: { skip?: number; limit?: number; search?: string } = {}
+) {
+  return request<Asset[]>(http.get(`/projects/${projectId}/assets`, { params }))
+}
+
+export async function fetchTask(taskId: number) {
+  return request<ScanTask>(http.get(`/tasks/${taskId}`))
 }
 
 export async function listTasks(params: Record<string, unknown> = {}) {
