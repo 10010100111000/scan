@@ -14,7 +14,7 @@
             </el-icon>
           </el-button>
         </div>
-        <el-button class="new-scan" type="primary" plain block @click="goScan">
+        <el-button class="new-scan" type="primary" plain block @click="openScan">
           <el-icon><Plus /></el-icon>
           <span v-if="!railCollapsed">+ 新建扫描</span>
         </el-button>
@@ -231,11 +231,22 @@
         </div>
       </aside>
     </div>
+    <transition name="scan-overlay">
+      <div v-if="scanOverlayOpen" class="scan-overlay" @click.self="closeScan">
+        <div class="scan-overlay__backdrop" @click="closeScan"></div>
+        <div class="scan-overlay__panel" @click.stop>
+          <button class="scan-overlay__close" type="button" @click="closeScan" aria-label="Close scan overlay">
+            <span aria-hidden="true">&times;</span>
+          </button>
+          <ScanView />
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, type Component } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import {
   Compass,
@@ -251,13 +262,31 @@ import {
   WarningFilled,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import ScanView from '@/views/ScanView.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const userInfo = computed(() => auth.userInfo)
 const railCollapsed = ref(false)
-const goScan = () => router.push({ name: 'Scan' })
+const scanOverlayOpen = ref(false)
+
+const openScan = () => {
+  scanOverlayOpen.value = true
+}
+
+const closeScan = () => {
+  scanOverlayOpen.value = false
+}
+
+const handleKeydown = (event: KeyboardEvent) => {
+  if (!scanOverlayOpen.value) {
+    return
+  }
+  if (event.key === 'Escape') {
+    closeScan()
+  }
+}
 
 
 const navLinks: Array<{ label: string; icon: Component; route: RouteLocationRaw }> = [
@@ -360,6 +389,19 @@ onMounted(async () => {
   if (!auth.userInfo && auth.token) {
     await auth.fetchUserInfo()
   }
+})
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+  document.body.classList.remove('scan-overlay-open')
+})
+
+watch(scanOverlayOpen, (isOpen) => {
+  document.body.classList.toggle('scan-overlay-open', isOpen)
 })
 </script>
 
@@ -760,6 +802,77 @@ onMounted(async () => {
   font-size: 26px;
   font-weight: 700;
   color: #e2e8f0;
+}
+
+:global(body.scan-overlay-open) {
+  overflow: hidden;
+}
+
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+}
+
+.scan-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.scan-overlay__panel {
+  position: relative;
+  margin-top: auto;
+  height: 100%;
+  width: 100%;
+  background: #0b1020;
+  box-shadow: 0 -24px 80px rgba(0, 0, 0, 0.4);
+}
+
+.scan-overlay__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.scan-overlay__close:hover {
+  transform: translateY(-1px);
+  border-color: rgba(226, 232, 240, 0.5);
+  background: rgba(30, 41, 59, 0.9);
+}
+
+.scan-overlay-enter-active,
+.scan-overlay-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.scan-overlay-enter-from,
+.scan-overlay-leave-to {
+  opacity: 0;
+}
+
+.scan-overlay-enter-active .scan-overlay__panel,
+.scan-overlay-leave-active .scan-overlay__panel {
+  transition: transform 0.35s ease;
+}
+
+.scan-overlay-enter-from .scan-overlay__panel,
+.scan-overlay-leave-to .scan-overlay__panel {
+  transform: translateY(100%);
 }
 
 @media (max-width: 1280px) {
