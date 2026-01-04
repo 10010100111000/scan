@@ -1,7 +1,10 @@
 <template>
   <div class="dashboard-page">
     <div class="background-accents"></div>
-    <div class="dashboard-grid">
+    <div
+      class="dashboard-grid"
+      :style="{ '--rail-width': railCollapsed ? '84px' : '260px', '--right-width': rightRailVisible ? '320px' : '0px' }"
+    >
       <aside :class="['nav-rail', 'card-glass', { collapsed: railCollapsed }]">
         <div class="nav-rail__top">
           <div class="brand" v-if="!railCollapsed">
@@ -177,7 +180,7 @@
         </section>
       </main>
 
-      <aside class="right-rail">
+      <aside class="right-rail" v-show="rightRailVisible">
         <div class="card-glass rail-card">
           <div class="panel-header">
             <div>
@@ -270,6 +273,12 @@ const route = useRoute()
 const userInfo = computed(() => auth.userInfo)
 const railCollapsed = ref(false)
 const scanOverlayOpen = ref(false)
+const windowWidth = ref(window.innerWidth)
+const rightRailVisible = computed(() => windowWidth.value >= 1280)
+
+const handleResize = () => {
+  windowWidth.value = window.innerWidth
+}
 
 const openScan = () => {
   scanOverlayOpen.value = true
@@ -393,10 +402,12 @@ onMounted(async () => {
 
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('resize', handleResize)
   document.body.classList.remove('scan-overlay-open')
 })
 
@@ -429,9 +440,15 @@ watch(scanOverlayOpen, (isOpen) => {
 .dashboard-grid {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(84px, 260px) minmax(0, 1fr) minmax(0, 320px);
+  grid-template-columns: var(--rail-width) minmax(0, 1fr) var(--right-width);
   gap: 16px;
   z-index: 1;
+  transition: grid-template-columns 0.2s ease;
+}
+
+.dashboard-grid > * {
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .nav-rail {
@@ -446,11 +463,12 @@ watch(scanOverlayOpen, (isOpen) => {
   gap: 16px;
   transition: width 0.2s ease, padding 0.2s ease;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .nav-rail.collapsed {
   width: 100%;
-  max-width: 84px;
   padding: 16px 12px;
 }
 
@@ -509,6 +527,7 @@ watch(scanOverlayOpen, (isOpen) => {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+
 .nav-rail.collapsed .nav-item {
   justify-content: center;
 }
@@ -517,6 +536,8 @@ watch(scanOverlayOpen, (isOpen) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .dashboard__header {
@@ -730,6 +751,8 @@ watch(scanOverlayOpen, (isOpen) => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .rail-card {
@@ -879,7 +902,7 @@ watch(scanOverlayOpen, (isOpen) => {
 
 @media (max-width: 1280px) {
   .dashboard-grid {
-    grid-template-columns: minmax(84px, 220px) minmax(0, 1fr);
+    grid-template-columns: var(--rail-width) minmax(0, 1fr);
   }
 
   .right-rail {
