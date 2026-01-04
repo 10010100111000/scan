@@ -19,7 +19,7 @@
         </div>
         <el-button class="new-scan" type="primary" plain block @click="openScan">
           <el-icon><Plus /></el-icon>
-          <span v-if="!railCollapsed">+ 新建扫描</span>
+          <span v-if="!railCollapsed">新建扫描</span>
         </el-button>
         <div class="nav-list">
           <router-link
@@ -38,8 +38,8 @@
         <header class="dashboard__header card-glass">
           <div>
             <p class="text-faint">欢迎回来</p>
-            <h2 class="hero-title">临时控制台</h2>
-            <p class="text-faint header-hint">示例数据演示资产与任务布局，真实数据接入后可直接替换。</p>
+            <h2 class="hero-title">渗透测试与管理平台</h2>
+            <!--<p class="text-faint header-hint">示例数据演示资产与任务布局，真实数据接入后可直接替换。</p>-->
           </div>
           <div class="user-area">
             <div class="user-meta">
