@@ -19,24 +19,6 @@
     <div class="card-glass rail-card">
       <div class="panel-header">
         <div>
-          <p class="text-faint">排队中的任务</p>
-          <h3>队列</h3>
-        </div>
-      </div>
-      <div class="queue-list">
-        <div v-for="job in queuedJobs" :key="job.name" class="queue-item">
-          <div>
-            <h4>{{ job.name }}</h4>
-            <p class="text-faint">{{ job.scope }}</p>
-          </div>
-          <el-tag :type="job.state === '排队中' ? 'warning' : 'info'" size="small">{{ job.state }}</el-tag>
-        </div>
-      </div>
-    </div>
-
-    <div class="card-glass rail-card">
-      <div class="panel-header">
-        <div>
           <p class="text-faint">帮助与链接</p>
           <h3>资源</h3>
         </div>
@@ -58,12 +40,6 @@
 import { Link } from '@element-plus/icons-vue'
 
 const quickFilters = ['高风险', '新增资产', '需要确认', '今天', '对外暴露']
-
-const queuedJobs = [
-  { name: '夜间全量扫描', scope: '120 目标 · 5 节点', state: '排队中' },
-  { name: '目录爆破', scope: 'api.cloud.example', state: '准备中' },
-  { name: '合规检查', scope: '生产资产', state: '排队中' },
-]
 
 const helpfulLinks = [
   { label: '接入真实数据', desc: '查看 API 指南与示例' },
@@ -111,22 +87,6 @@ const helpfulLinks = [
 
 .filter-tag {
   padding: 8px 12px;
-}
-
-.queue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.queue-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .links {

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.api import deps
 from app.data import models
 from app.api.v1 import schemas
+from app.core.responses import success_response
 
 router = APIRouter()
 
@@ -38,7 +39,7 @@ def _serialize_host(host: models.Host) -> Dict[str, Any]:
     }
 
 # --- 1. 获取子域名 (Hosts) - Cursor Based Pagination ---
-@router.get("/assets/{asset_id}/hosts", response_model=Dict[str, Any])
+@router.get("/assets/{asset_id}/hosts", response_model=schemas.ApiResponse)
 async def get_asset_hosts(
     asset_id: int,
     limit: int = Query(100, ge=1, le=1000),
@@ -70,7 +71,7 @@ async def get_asset_hosts(
     items = hosts[:real_limit]
     next_cursor = items[-1].id if has_more and items else None
 
-    return {
+    data = {
         "items": [
             _serialize_host(h) for h in items
         ],
@@ -78,9 +79,10 @@ async def get_asset_hosts(
         "has_more": has_more,
         "limit": real_limit,
     }
+    return success_response(data)
 
 
-@router.get("/assets/{asset_id}/hosts/{host_id}", response_model=Dict[str, Any])
+@router.get("/assets/{asset_id}/hosts/{host_id}", response_model=schemas.ApiResponse)
 async def get_host_detail(
     asset_id: int,
     host_id: int,
@@ -91,10 +93,10 @@ async def get_host_detail(
     if not host or host.root_asset_id != asset_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
     await db.refresh(host, attribute_names=["ip_addresses"])
-    return _serialize_host(host)
+    return success_response(_serialize_host(host))
 
 
-@router.post("/assets/{asset_id}/hosts", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+@router.post("/assets/{asset_id}/hosts", response_model=schemas.ApiResponse, status_code=status.HTTP_201_CREATED)
 async def create_host_for_asset(
     asset_id: int,
     payload: HostCreatePayload,
@@ -145,10 +147,10 @@ async def create_host_for_asset(
         await db.commit()
         await db.refresh(host, attribute_names=["ip_addresses"])
 
-    return _serialize_host(host)
+    return success_response(_serialize_host(host))
 
 
-@router.patch("/assets/{asset_id}/hosts/{host_id}", response_model=Dict[str, Any])
+@router.patch("/assets/{asset_id}/hosts/{host_id}", response_model=schemas.ApiResponse)
 async def update_host_for_asset(
     asset_id: int,
     host_id: int,
@@ -167,10 +169,10 @@ async def update_host_for_asset(
 
     await db.commit()
     await db.refresh(host, attribute_names=["ip_addresses"])
-    return _serialize_host(host)
+    return success_response(_serialize_host(host))
 
 
-@router.delete("/assets/{asset_id}/hosts/{host_id}", response_model=Dict[str, str])
+@router.delete("/assets/{asset_id}/hosts/{host_id}", response_model=schemas.ApiResponse)
 async def delete_host_for_asset(
     asset_id: int,
     host_id: int,
@@ -182,12 +184,12 @@ async def delete_host_for_asset(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
     await db.delete(host)
     await db.commit()
-    return {"detail": "deleted"}
+    return success_response({"detail": "deleted"})
 
 # --- 2. 获取 IP 和 端口 (Ports) ---
 @router.get(
     "/assets/{asset_id}/ports",
-    response_model=List[schemas.PortSummary],
+    response_model=schemas.ApiResponse,
     summary="获取资产开放端口（分页）",
 )
 async def get_asset_ports(
@@ -219,12 +221,12 @@ async def get_asset_ports(
                 "port": p.port_number,
                 "service": p.service_name
             })
-    return data
+    return success_response(data)
 
 # --- 3. 获取 Web 服务 ---
 @router.get(
     "/assets/{asset_id}/web",
-    response_model=List[schemas.HTTPServiceSummary],
+    response_model=schemas.ApiResponse,
     summary="获取资产 Web 服务（分页）",
 )
 async def get_asset_web(
@@ -245,15 +247,16 @@ async def get_asset_web(
     )
     result = await db.execute(stmt)
     services = result.scalars().all()
-    return [
+    data = [
         {"id": s.id, "url": s.url, "title": s.title, "tech": s.tech, "status": s.status_code}
         for s in services
     ]
+    return success_response(data)
 
 # --- 4. 获取漏洞 ---
 @router.get(
     "/assets/{asset_id}/vulns",
-    response_model=List[schemas.VulnerabilitySummary],
+    response_model=schemas.ApiResponse,
     summary="获取资产漏洞（分页）",
 )
 async def get_asset_vulns(
@@ -279,7 +282,8 @@ async def get_asset_vulns(
     )
     result = await db.execute(stmt)
     vulns = result.scalars().all()
-    return [
+    data = [
         {"id": v.id, "name": v.vulnerability_name, "severity": v.severity, "url": v.matched_at}
         for v in vulns
     ]
+    return success_response(data)

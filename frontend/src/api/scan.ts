@@ -1,9 +1,9 @@
 import http, { request } from '@/api/http'
 
-export interface ScanConfigSummary {
-  name: string
-  agent_type?: string | null
+export interface ScanStrategySummary {
+  strategy_name: string
   description?: string | null
+  steps: string[]
 }
 
 export interface Project {
@@ -29,9 +29,21 @@ export interface ScanTask {
   status: 'pending' | 'running' | 'completed' | 'failed'
   config_name: string
   asset_id: number | null
+  project_id?: number | null
+  project_name?: string | null
   created_at: string
   completed_at?: string | null
   log?: string | null
+}
+
+export interface TaskListResponse {
+  items: ScanTask[]
+  total: number
+}
+
+export interface ScanSubmissionResponse {
+  strategy_name: string
+  task_ids: number[]
 }
 
 export interface HostSummary {
@@ -74,8 +86,8 @@ export interface VulnerabilitySummary {
   url?: string | null
 }
 
-export async function fetchScanConfigs() {
-  return request<ScanConfigSummary[]>(http.get('/scan-configs'))
+export async function fetchScanStrategies() {
+  return request<ScanStrategySummary[]>(http.get('/scan-strategies'))
 }
 
 export async function fetchProjects(params: { skip?: number; limit?: number; search?: string } = {}) {
@@ -90,8 +102,8 @@ export async function createAsset(projectId: number, payload: { name: string; ty
   return request<Asset>(http.post(`/projects/${projectId}/assets`, payload))
 }
 
-export async function triggerScan(assetId: number, payload: { config_name: string }) {
-  return request<ScanTask>(http.post(`/assets/${assetId}/scan`, payload))
+export async function triggerScan(assetId: number, payload: { strategy_name: string }) {
+  return request<ScanSubmissionResponse>(http.post(`/assets/${assetId}/scan`, payload))
 }
 
 
@@ -140,4 +152,12 @@ export async function fetchAssetVulns(
 
 export async function listTasks(params: Record<string, unknown> = {}) {
   return request<ScanTask[]>(http.get('/tasks', { params }))
+}
+
+export async function fetchAssets(params: Record<string, unknown> = {}) {
+  return request<Asset[]>(http.get('/assets', { params }))
+}
+
+export async function fetchAssetById(assetId: number) {
+  return request<Asset>(http.get(`/assets/${assetId}`))
 }
