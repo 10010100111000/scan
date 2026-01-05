@@ -4,9 +4,7 @@ from typing import Any, Optional
 
 
 def success_response(data: Optional[Any] = None, message: str = "success") -> dict[str, Any]:
-    """
-    标准成功响应格式，兼容 Vben Admin 默认的 code/data 包裹结构。
-    """
+    """标准成功响应格式。"""
 
     return {
         "code": 0,

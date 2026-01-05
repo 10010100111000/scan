@@ -1,0 +1,21 @@
+# backend/configs/scan_strategies.yaml
+# 扫描策略定义（面向用户的“流程/策略”）
+
+- strategy_name: "资产发现 + Web 探测"
+  description: "子域名发现、解析验证，并识别 Web 服务与指纹。"
+  steps:
+    - "Subfinder (默认)"
+    - "dnsx (解析验证)"
+    - "httpx (Web探活)"
+
+- strategy_name: "端口扫描 + Web 探测"
+  description: "端口扫描后进行 Web 服务探测与指纹识别。"
+  steps:
+    - "naabu (快速端口扫描)"
+    - "httpx (Web探活)"
+
+- strategy_name: "高危漏洞检测（快速）"
+  description: "针对已发现 Web 服务快速进行高危漏洞扫描。"
+  steps:
+    - "httpx (Web探活)"
+    - "Nuclei (高危漏洞)"
