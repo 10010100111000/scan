@@ -102,6 +102,27 @@
             <strong>{{ currentTargetLabel }}</strong>
           </div>
         </div>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">任务终端</span>
+          </div>
+          <div class="terminal-body">
+            <div v-if="terminalLines.length === 0" class="terminal-line text-faint">
+              等待任务提交...
+            </div>
+            <div v-for="(line, index) in terminalLines" :key="index" class="terminal-line">
+              {{ line }}
+            </div>
+          </div>
+          <div class="terminal-footer">
+            <span class="text-faint">状态：</span>
+            <span :class="['terminal-status', terminalStatus]">{{ terminalStatusLabel }}</span>
+          </div>
+        </div>
       </div>
 
       <aside class="scan-aside card-glass">
@@ -127,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import {
@@ -145,7 +166,7 @@ import { useScanOverlay } from '@/composables/useScanOverlay'
 import { useTaskStatus } from '@/composables/useTaskStatus'
 
 const { close: closeScan } = useScanOverlay()
-const { refresh } = useTaskStatus()
+const { tasks } = useTaskStatus()
 
 const scanConfigs = ref<ScanConfigSummary[]>([])
 const scanConfigsLoading = ref(false)
@@ -156,6 +177,11 @@ const projectsLoading = ref(false)
 const projectCreating = ref(false)
 const newProjectName = ref('')
 const currentTarget = ref('')
+const currentTaskId = ref<number | null>(null)
+const terminalLines = ref<string[]>([])
+const terminalStatus = ref<'idle' | 'pending' | 'running' | 'completed' | 'failed'>('idle')
+const lastTaskStatus = ref<string | null>(null)
+let autoCloseTimer: number | null = null
 
 const form = reactive<{
   target: string
@@ -176,6 +202,21 @@ const projectLabel = computed(() => {
 })
 
 const currentTargetLabel = computed(() => currentTarget.value || '未设置')
+
+const terminalStatusLabel = computed(() => {
+  switch (terminalStatus.value) {
+    case 'pending':
+      return '等待中'
+    case 'running':
+      return '执行中'
+    case 'completed':
+      return '已完成'
+    case 'failed':
+      return '失败'
+    default:
+      return '空闲'
+  }
+})
 
 const projectOptionLabel = (project: Project) => `${project.name} (#${project.id})`
 
@@ -282,14 +323,28 @@ const handleStartScan = async () => {
   }
   scanSubmitting.value = true
   try {
+    terminalLines.value = []
+    terminalStatus.value = 'pending'
+    lastTaskStatus.value = null
+    currentTaskId.value = null
+    if (autoCloseTimer) {
+      window.clearTimeout(autoCloseTimer)
+      autoCloseTimer = null
+    }
+
     const existingAssets = await searchAssetsByName(normalizedTarget, 1)
     if (existingAssets.length > 0) {
       currentTarget.value = existingAssets[0].name
       form.project_id = existingAssets[0].project_id
+      terminalLines.value.push('目标已存在，直接复用历史结果。')
+      terminalStatus.value = 'completed'
       ElMessage.success('已存在资产，结果将直接复用')
-      closeScan()
+      autoCloseTimer = window.setTimeout(() => {
+        closeScan()
+      }, 1500)
       return
     }
+
     const projectId = await ensureProjectId()
     if (!projectId) {
       return
@@ -297,10 +352,13 @@ const handleStartScan = async () => {
     const assetId = await resolveAssetId(projectId, normalizedTarget)
     currentTarget.value = normalizedTarget
     const task = await triggerScan(assetId, { config_name: form.config_name })
-    await refresh()
+    currentTaskId.value = task.id
+    terminalLines.value.push(`任务 #${task.id} 已提交，等待后端执行...`)
+    terminalStatus.value = task.status === 'running' ? 'running' : 'pending'
     ElMessage.success(`任务 #${task.id} 已提交`)
-    closeScan()
   } catch (error) {
+    terminalLines.value.push(`推送失败：${(error as Error).message}`)
+    terminalStatus.value = 'failed'
     ElMessage.error((error as Error).message)
   } finally {
     scanSubmitting.value = false
@@ -314,6 +372,51 @@ const resetForm = () => {
 
 onMounted(async () => {
   await Promise.all([loadProjects(), loadConfigs()])
+})
+
+watch(
+  () => [tasks.value, currentTaskId.value] as const,
+  ([taskList, taskId]) => {
+    if (!taskId) {
+      return
+    }
+    const task = taskList.find((item) => item.id === taskId)
+    if (!task) {
+      return
+    }
+    if (lastTaskStatus.value === task.status) {
+      return
+    }
+    lastTaskStatus.value = task.status
+    if (task.status === 'running') {
+      terminalStatus.value = 'running'
+      terminalLines.value.push(`任务 #${task.id} 开始执行...`)
+    } else if (task.status === 'completed') {
+      terminalStatus.value = 'completed'
+      terminalLines.value.push('任务执行完成。')
+      if (task.log) {
+        terminalLines.value.push(task.log)
+      }
+      autoCloseTimer = window.setTimeout(() => {
+        closeScan()
+      }, 1500)
+    } else if (task.status === 'failed') {
+      terminalStatus.value = 'failed'
+      terminalLines.value.push('任务执行失败。')
+      if (task.log) {
+        terminalLines.value.push(task.log)
+      }
+    } else {
+      terminalStatus.value = 'pending'
+    }
+  },
+  { deep: true }
+)
+
+onUnmounted(() => {
+  if (autoCloseTimer) {
+    window.clearTimeout(autoCloseTimer)
+  }
 })
 </script>
 
@@ -423,6 +526,97 @@ onMounted(async () => {
   gap: 12px;
   padding-top: 8px;
   border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.terminal {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.55);
+  overflow: hidden;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.7);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.terminal-dot.red {
+  background: #ef4444;
+}
+
+.terminal-dot.yellow {
+  background: #fbbf24;
+}
+
+.terminal-dot.green {
+  background: #22c55e;
+}
+
+.terminal-title {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-left: 6px;
+}
+
+.terminal-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  color: #e2e8f0;
+  min-height: 140px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.terminal-line {
+  line-height: 1.5;
+}
+
+.terminal-footer {
+  padding: 8px 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.terminal-status {
+  font-weight: 600;
+}
+
+.terminal-status.idle {
+  color: #94a3b8;
+}
+
+.terminal-status.pending {
+  color: #fbbf24;
+}
+
+.terminal-status.running {
+  color: #38bdf8;
+}
+
+.terminal-status.completed {
+  color: #22c55e;
+}
+
+.terminal-status.failed {
+  color: #f87171;
 }
 
 .scan-aside {

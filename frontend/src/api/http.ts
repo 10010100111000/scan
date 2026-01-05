@@ -24,7 +24,12 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     const message = error.response?.data?.message || error.response?.data?.detail || error.message || '请求失败'
-    return Promise.reject(new Error(message))
+    const status = error.response?.status
+    const enhancedError = new Error(message) as Error & { status?: number }
+    if (status) {
+      enhancedError.status = status
+    }
+    return Promise.reject(enhancedError)
   }
 )
 

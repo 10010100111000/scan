@@ -1,12 +1,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { listTasks, type ScanTask } from '@/api/scan'
+import type { ScanTask } from '@/api/scan'
 
 type IndicatorState = 'idle' | 'running' | 'completed' | 'failed'
 
 const tasks = ref<ScanTask[]>([])
 const indicator = ref<IndicatorState>('idle')
-let pollTimer: number | null = null
-let isPolling = false
+let eventSource: EventSource | null = null
+let reconnectTimer: number | null = null
+let lastErrorStatus: number | null = null
 
 const refreshIndicator = () => {
   if (tasks.value.length === 0) {
@@ -24,47 +25,75 @@ const refreshIndicator = () => {
   indicator.value = 'completed'
 }
 
-const fetchTaskList = async () => {
-  const response = await listTasks({ limit: 50 })
-  tasks.value = response
-  refreshIndicator()
+const parseMessage = (raw: string) => {
+  try {
+    return JSON.parse(raw) as { type?: string; data?: { tasks?: ScanTask[] } }
+  } catch {
+    return null
+  }
 }
 
-const startPolling = () => {
-  if (isPolling) {
+const startStream = () => {
+  if (eventSource) {
     return
   }
-  isPolling = true
-  pollTimer = window.setInterval(() => {
-    fetchTaskList().catch(() => {
-      // keep last state if polling fails
-    })
-  }, 6000)
+  const token = localStorage.getItem('auth_token')
+  if (!token) {
+    tasks.value = []
+    refreshIndicator()
+    return
+  }
+  const url = `/api/tasks/stream?token=${encodeURIComponent(token)}&limit=50`
+  eventSource = new EventSource(url)
+  eventSource.onmessage = (event) => {
+    const message = parseMessage(event.data)
+    if (!message || message.type !== 'task_status') {
+      return
+    }
+    tasks.value = message.data?.tasks ?? []
+    lastErrorStatus = null
+    refreshIndicator()
+  }
+  eventSource.onerror = () => {
+    lastErrorStatus = 0
+    closeStream()
+    scheduleReconnect()
+  }
 }
 
-const stopPolling = () => {
-  if (pollTimer) {
-    window.clearInterval(pollTimer)
-    pollTimer = null
+const closeStream = () => {
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
   }
-  isPolling = false
+}
+
+const scheduleReconnect = () => {
+  if (reconnectTimer) {
+    return
+  }
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null
+    startStream()
+  }, 10000)
 }
 
 export const useTaskStatus = () => {
   onMounted(() => {
-    fetchTaskList().catch(() => {
-      // ignore initial errors
-    })
-    startPolling()
+    startStream()
   })
 
   onUnmounted(() => {
-    stopPolling()
+    closeStream()
+    if (reconnectTimer) {
+      window.clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
   })
 
   return {
     tasks,
     indicator: computed(() => indicator.value),
-    refresh: fetchTaskList,
+    lastErrorStatus: computed(() => lastErrorStatus),
   }
 }
