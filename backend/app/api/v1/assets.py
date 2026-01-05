@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError, StatementError
 
 from app.api import deps # 导入我们的依赖
 from app.data import models
@@ -54,7 +54,7 @@ async def search_assets_by_name(
     """
     normalized = name.strip().lower().rstrip(".")
     if not normalized:
-        return []
+        return success_response([])
     stmt = (
         select(models.Asset, models.Project)
         .join(models.Project, models.Asset.project_id == models.Project.id)
@@ -158,9 +158,12 @@ async def create_asset_for_project(
     db.add(db_asset)
     try:
         await db.commit()
-    except IntegrityError as e:
+    except (IntegrityError, StatementError) as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"创建资产失败: {e}")
+    except DBAPIError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"创建资产失败: {e}")
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建资产失败: {e}")
