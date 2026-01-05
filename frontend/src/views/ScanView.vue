@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import {
@@ -163,10 +163,7 @@ import {
   type ScanConfigSummary,
 } from '@/api/scan'
 import { useScanOverlay } from '@/composables/useScanOverlay'
-import { useTaskStatus } from '@/composables/useTaskStatus'
-
 const { close: closeScan } = useScanOverlay()
-const { tasks } = useTaskStatus()
 
 const scanConfigs = ref<ScanConfigSummary[]>([])
 const scanConfigsLoading = ref(false)
@@ -177,10 +174,8 @@ const projectsLoading = ref(false)
 const projectCreating = ref(false)
 const newProjectName = ref('')
 const currentTarget = ref('')
-const currentTaskId = ref<number | null>(null)
 const terminalLines = ref<string[]>([])
-const terminalStatus = ref<'idle' | 'pending' | 'running' | 'completed' | 'failed'>('idle')
-const lastTaskStatus = ref<string | null>(null)
+const terminalStatus = ref<'idle' | 'pending' | 'success' | 'failed'>('idle')
 let autoCloseTimer: number | null = null
 
 const form = reactive<{
@@ -206,11 +201,9 @@ const currentTargetLabel = computed(() => currentTarget.value || '未设置')
 const terminalStatusLabel = computed(() => {
   switch (terminalStatus.value) {
     case 'pending':
-      return '等待中'
-    case 'running':
-      return '执行中'
-    case 'completed':
-      return '已完成'
+      return '提交中'
+    case 'success':
+      return '已提交'
     case 'failed':
       return '失败'
     default:
@@ -325,8 +318,6 @@ const handleStartScan = async () => {
   try {
     terminalLines.value = []
     terminalStatus.value = 'pending'
-    lastTaskStatus.value = null
-    currentTaskId.value = null
     if (autoCloseTimer) {
       window.clearTimeout(autoCloseTimer)
       autoCloseTimer = null
@@ -337,11 +328,11 @@ const handleStartScan = async () => {
       currentTarget.value = existingAssets[0].name
       form.project_id = existingAssets[0].project_id
       terminalLines.value.push('目标已存在，直接复用历史结果。')
-      terminalStatus.value = 'completed'
+      terminalStatus.value = 'success'
       ElMessage.success('已存在资产，结果将直接复用')
       autoCloseTimer = window.setTimeout(() => {
         closeScan()
-      }, 1500)
+      }, 1800)
       return
     }
 
@@ -352,10 +343,12 @@ const handleStartScan = async () => {
     const assetId = await resolveAssetId(projectId, normalizedTarget)
     currentTarget.value = normalizedTarget
     const task = await triggerScan(assetId, { config_name: form.config_name })
-    currentTaskId.value = task.id
-    terminalLines.value.push(`任务 #${task.id} 已提交，等待后端执行...`)
-    terminalStatus.value = task.status === 'running' ? 'running' : 'pending'
+    terminalLines.value.push(`任务 #${task.id} 已提交。`)
+    terminalStatus.value = 'success'
     ElMessage.success(`任务 #${task.id} 已提交`)
+    autoCloseTimer = window.setTimeout(() => {
+      closeScan()
+    }, 1800)
   } catch (error) {
     terminalLines.value.push(`推送失败：${(error as Error).message}`)
     terminalStatus.value = 'failed'
@@ -373,45 +366,6 @@ const resetForm = () => {
 onMounted(async () => {
   await Promise.all([loadProjects(), loadConfigs()])
 })
-
-watch(
-  () => [tasks.value, currentTaskId.value] as const,
-  ([taskList, taskId]) => {
-    if (!taskId) {
-      return
-    }
-    const task = taskList.find((item) => item.id === taskId)
-    if (!task) {
-      return
-    }
-    if (lastTaskStatus.value === task.status) {
-      return
-    }
-    lastTaskStatus.value = task.status
-    if (task.status === 'running') {
-      terminalStatus.value = 'running'
-      terminalLines.value.push(`任务 #${task.id} 开始执行...`)
-    } else if (task.status === 'completed') {
-      terminalStatus.value = 'completed'
-      terminalLines.value.push('任务执行完成。')
-      if (task.log) {
-        terminalLines.value.push(task.log)
-      }
-      autoCloseTimer = window.setTimeout(() => {
-        closeScan()
-      }, 1500)
-    } else if (task.status === 'failed') {
-      terminalStatus.value = 'failed'
-      terminalLines.value.push('任务执行失败。')
-      if (task.log) {
-        terminalLines.value.push(task.log)
-      }
-    } else {
-      terminalStatus.value = 'pending'
-    }
-  },
-  { deep: true }
-)
 
 onUnmounted(() => {
   if (autoCloseTimer) {
@@ -607,11 +561,7 @@ onUnmounted(() => {
   color: #fbbf24;
 }
 
-.terminal-status.running {
-  color: #38bdf8;
-}
-
-.terminal-status.completed {
+.terminal-status.success {
   color: #22c55e;
 }
 
