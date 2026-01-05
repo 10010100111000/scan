@@ -2,7 +2,7 @@ from typing import Any, List, Optional
 from datetime import datetime, timezone
 import asyncio
 import json
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -11,7 +11,6 @@ from app.api import deps
 from app.data import models
 from app.api.v1 import schemas
 from app.data.session import AsyncSessionLocal
-from app.userManage.security import decode_access_token
 
 router = APIRouter()
 
@@ -113,39 +112,8 @@ def _build_event(event_type: str, data: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _normalize_token(raw: Optional[str]) -> Optional[str]:
-    if not raw:
-        return None
-    value = raw.strip()
-    if value.lower().startswith("bearer "):
-        return value[7:].strip()
-    return value
-
-
-async def _verify_token(token: Optional[str], authorization: Optional[str]) -> None:
-    """
-    SSE 无法携带 Authorization Header，使用 query token 进行校验。
-    """
-    normalized = _normalize_token(token) or _normalize_token(authorization)
-    if not normalized:
-        raise HTTPException(status_code=401, detail="缺少 token")
-    payload = decode_access_token(normalized)
-    if not payload:
-        raise HTTPException(status_code=401, detail="无效 token")
-    username = payload.get("sub")
-    if not username:
-        raise HTTPException(status_code=401, detail="无效 token")
-    async with AsyncSessionLocal() as db:
-        user = await deps.get_user_by_username(db, username)
-        if not user or not user.is_active:
-            raise HTTPException(status_code=403, detail="用户不可用")
-
-
 @router.get("/stream")
 async def stream_tasks(
-    token: Optional[str] = Query(None, description="用于 SSE 鉴权的 token"),
-    access_token: Optional[str] = Query(None, description="兼容参数：access_token"),
-    authorization: Optional[str] = Header(None, alias="Authorization"),
     limit: int = Query(50, ge=1, le=100, description="返回任务数量"),
     status: Optional[str] = Query(None, description="按任务状态过滤"),
     asset_id: Optional[int] = Query(None, description="按资产 ID 过滤"),
@@ -154,8 +122,6 @@ async def stream_tasks(
     """
     SSE 推送任务状态：客户端保持长连接，后端统一发送任务列表与汇总。
     """
-    await _verify_token(token or access_token, authorization)
-
     async def event_generator():
         last_hash = ""
         last_emit = 0.0

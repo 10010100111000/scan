@@ -1,16 +1,13 @@
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { ScanTask } from '@/api/scan'
-import { useAuthStore } from '@/stores/auth'
 
 type IndicatorState = 'idle' | 'running' | 'completed' | 'failed'
 
-const auth = useAuthStore()
 const tasks = ref<ScanTask[]>([])
 const indicator = ref<IndicatorState>('idle')
 let eventSource: EventSource | null = null
 let reconnectTimer: number | null = null
 let lastErrorStatus: number | null = null
-let activeToken: string | null = null
 
 const refreshIndicator = () => {
   if (tasks.value.length === 0) {
@@ -36,18 +33,11 @@ const parseMessage = (raw: string) => {
   }
 }
 
-const startStream = (token: string | null) => {
-  if (!token) {
-    tasks.value = []
-    refreshIndicator()
+const startStream = () => {
+  if (eventSource) {
     return
   }
-  if (eventSource && activeToken === token) {
-    return
-  }
-  closeStream()
-  activeToken = token
-  const url = `/api/tasks/stream?access_token=${encodeURIComponent(token)}&limit=50`
+  const url = `/api/tasks/stream?limit=50`
   eventSource = new EventSource(url)
   eventSource.onmessage = (event) => {
     const message = parseMessage(event.data)
@@ -70,7 +60,6 @@ const closeStream = () => {
     eventSource.close()
     eventSource = null
   }
-  activeToken = null
 }
 
 const scheduleReconnect = () => {
@@ -79,13 +68,13 @@ const scheduleReconnect = () => {
   }
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null
-    startStream(auth.token ?? localStorage.getItem('auth_token'))
+    startStream()
   }, 10000)
 }
 
 export const useTaskStatus = () => {
   onMounted(() => {
-    startStream(auth.token ?? localStorage.getItem('auth_token'))
+    startStream()
   })
 
   onUnmounted(() => {
@@ -102,16 +91,3 @@ export const useTaskStatus = () => {
     lastErrorStatus: computed(() => lastErrorStatus),
   }
 }
-
-watch(
-  () => auth.token,
-  (token) => {
-    if (!token) {
-      closeStream()
-      tasks.value = []
-      refreshIndicator()
-      return
-    }
-    startStream(token)
-  }
-)
