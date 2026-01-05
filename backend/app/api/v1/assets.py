@@ -40,29 +40,15 @@ async def list_assets_global(
     assets = result.scalars().all()
     return success_response(assets)
 
-@router.get("/assets/{asset_id}", response_model=schemas.ApiResponse)
-async def get_asset_detail(
-    asset_id: int,
-    db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_user),
-):
-    """
-    获取单个资产详情（用于结果页加载资产信息）。
-    """
-    asset = await db.get(models.Asset, asset_id)
-    if not asset:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"资产 ID {asset_id} 不存在")
-    return success_response(asset)
-
 @router.get("/assets/search", response_model=schemas.ApiResponse)
 async def search_assets_by_name(
-    name: str = Query(..., description="??????????"),
-    limit: int = Query(10, ge=1, le=100, description="?????"),
+    name: str = Query(..., description="按资产名称精确搜索"),
+    limit: int = Query(10, ge=1, le=100, description="返回条目数"),
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
     """
-    ?????????????????????????
+    跨项目按资产名称精确搜索（用于扫描去重与复用）。
     """
     normalized = name.strip().lower().rstrip(".")
     if not normalized:
@@ -88,6 +74,20 @@ async def search_assets_by_name(
         for asset, project in rows
     ]
     return success_response(data)
+
+@router.get("/assets/{asset_id}", response_model=schemas.ApiResponse)
+async def get_asset_detail(
+    asset_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    """
+    获取单个资产详情（用于结果页加载资产信息）。
+    """
+    asset = await db.get(models.Asset, asset_id)
+    if not asset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"资产 ID {asset_id} 不存在")
+    return success_response(asset)
 
 
 @router.get("/projects/{project_id}/assets", response_model=schemas.ApiResponse)

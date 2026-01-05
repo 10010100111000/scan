@@ -59,16 +59,6 @@ export interface ScanSubmissionResponse {
   task_ids: number[]
 }
 
-export interface TaskListResponse {
-  items: ScanTask[]
-  total: number
-}
-
-export interface ScanSubmissionResponse {
-  strategy_name: string
-  task_ids: number[]
-}
-
 export interface HostSummary {
   id: number
   hostname: string
