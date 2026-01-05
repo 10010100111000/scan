@@ -3,10 +3,11 @@
 API 路由：用于根资产 (Assets) 和触发扫描
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from app.api import deps # 导入我们的依赖
 from app.data import models
@@ -38,7 +39,8 @@ async def list_assets_global(
     stmt = stmt.order_by(models.Asset.id.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     assets = result.scalars().all()
-    return success_response(assets)
+    data = [schemas.AssetRead.model_validate(asset) for asset in assets]
+    return success_response(data)
 
 @router.get("/assets/search", response_model=schemas.ApiResponse)
 async def search_assets_by_name(
@@ -87,7 +89,7 @@ async def get_asset_detail(
     asset = await db.get(models.Asset, asset_id)
     if not asset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"资产 ID {asset_id} 不存在")
-    return success_response(asset)
+    return success_response(schemas.AssetRead.model_validate(asset))
 
 
 @router.get("/projects/{project_id}/assets", response_model=schemas.ApiResponse)
@@ -112,12 +114,14 @@ async def list_assets_for_project(
     stmt = stmt.order_by(models.Asset.id.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     assets = result.scalars().all()
-    return success_response(assets)
+    data = [schemas.AssetRead.model_validate(asset) for asset in assets]
+    return success_response(data)
 
 @router.post("/projects/{project_id}/assets", response_model=schemas.ApiResponse, status_code=status.HTTP_201_CREATED)
 async def create_asset_for_project(
     project_id: int,
     asset_in: schemas.AssetCreate,
+    response: Response,
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user)
 ):
@@ -128,18 +132,39 @@ async def create_asset_for_project(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"项目 ID {project_id} 不存在")
 
+    normalized_name = asset_in.name.strip().lower().rstrip(".")
+    if not normalized_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="资产名称不能为空")
+
+    existing_stmt = (
+        select(models.Asset)
+        .where(models.Asset.project_id == project_id)
+        .where(func.lower(models.Asset.name) == normalized_name)
+    )
+    existing_result = await db.execute(existing_stmt)
+    existing_asset = existing_result.scalars().first()
+    if existing_asset:
+        response.status_code = status.HTTP_200_OK
+        return success_response(
+            schemas.AssetRead.model_validate(existing_asset),
+            message="资产已存在，已复用现有记录",
+        )
+
     db_asset = models.Asset(
-        name=asset_in.name,
+        name=normalized_name,
         type=asset_in.type,
         project_id=project_id
     )
     db.add(db_asset)
     try:
         await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"创建资产失败: {e}")
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"创建资产失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建资产失败: {e}")
     await db.refresh(db_asset)
-    return success_response(db_asset)
+    return success_response(schemas.AssetRead.model_validate(db_asset))
 
 # ... 未来添加 GET /scans, GET /scans/{scan_id} 等 ...
