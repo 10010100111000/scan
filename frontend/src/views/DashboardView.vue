@@ -38,32 +38,6 @@
       <div class="card-glass panel">
         <div class="panel-header">
           <div>
-            <p class="text-faint">进行中的任务</p>
-            <h3>正在扫描</h3>
-          </div>
-          <el-button text type="primary" size="small" @click="goTasks">查看全部</el-button>
-        </div>
-        <div class="panel-body tasks">
-          <div v-for="task in ongoingTasks" :key="task.name" class="task-item">
-            <div class="task-meta">
-              <h4>{{ task.name }}</h4>
-              <p class="text-faint">{{ task.owner }} · 预计 {{ task.eta }}</p>
-            </div>
-            <div class="task-progress">
-              <el-progress :percentage="task.progress" :status="task.status === 'paused' ? 'warning' : 'success'" :stroke-width="10" />
-              <div class="task-tags">
-                <el-tag size="small" effect="plain">{{ task.stream }}</el-tag>
-                <el-tag v-if="task.status === 'paused'" size="small" type="warning" effect="plain">暂停</el-tag>
-                <el-tag v-else size="small" type="success" effect="plain">运行中</el-tag>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card-glass panel">
-        <div class="panel-header">
-          <div>
             <p class="text-faint">资产预览</p>
             <h3>最新资产</h3>
           </div>
@@ -195,11 +169,6 @@ const kpiCards = [
   },
 ]
 
-const ongoingTasks = [
-  { name: 'Web 应用扫描', owner: '蓝队 · 核心节点', eta: '12m', progress: 62, stream: 'xray-web', status: 'running' },
-  { name: '资产发现 · 东区', owner: '自动调度', eta: '24m', progress: 38, stream: 'fofa-sync', status: 'running' },
-  { name: '端口巡检', owner: '夜间批次', eta: '暂停', progress: 45, stream: 'nmap-fast', status: 'paused' },
-]
 
 const assetsPreview = [
   { name: 'api.cloud.example', ip: '10.12.3.21', tags: ['生产', 'API'], status: '在线' },
@@ -226,10 +195,6 @@ const refreshUser = async () => {
 const handleLogout = async () => {
   await auth.logout()
   router.replace({ name: 'Login' })
-}
-
-const goTasks = () => {
-  router.push({ name: 'Tasks' })
 }
 
 onMounted(async () => {
@@ -352,31 +317,6 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.tasks .task-item {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.task-meta h4 {
-  margin: 0 0 6px;
-}
-
-.task-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.task-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
 
 .asset-table :deep(.el-table) {
   background: transparent;

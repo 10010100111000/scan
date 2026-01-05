@@ -20,7 +20,7 @@ from app.core.responses import success_response, error_response
 #    这就像一个“迷你”的 FastAPI app
 router = APIRouter()
 
-@router.get("/status", response_model=dict)
+@router.get("/status", response_model=schemas.ApiResponse)
 async def get_auth_status(
     is_first_run: bool = Depends(deps.check_first_run),
 ):
@@ -29,7 +29,7 @@ async def get_auth_status(
     """
     return success_response({"first_run": is_first_run})
 
-@router.post("/setup", response_model=dict)
+@router.post("/setup", response_model=schemas.ApiResponse)
 async def setup_admin_user(
     admin_in: schemas.AdminCreate,
     is_first_run: bool = Depends(deps.check_first_run), # <-- 使用 deps
@@ -75,7 +75,7 @@ async def setup_admin_user(
         schemas.UserRead.model_validate(db_user).model_dump()
     )
 
-@router.post("/login", response_model=dict)
+@router.post("/login", response_model=schemas.ApiResponse)
 async def login_for_access_token(
     login_in: schemas.LoginRequest,
     db: AsyncSession = Depends(deps.get_db)
@@ -95,10 +95,10 @@ async def login_for_access_token(
         )
     access_token = create_access_token(data={"sub": user.username})
     token_data = schemas.AccessToken(accessToken=access_token)
-    return success_response(token_data.model_dump())
+    return JSONResponse(content=success_response(token_data.model_dump()))
 
 
-@router.post("/forgot", response_model=dict)
+@router.post("/forgot", response_model=schemas.ApiResponse)
 async def forgot_password(
     payload: schemas.ForgotPasswordRequest,
     is_first_run: bool = Depends(deps.check_first_run),
@@ -111,7 +111,7 @@ async def forgot_password(
     return success_response(message="暂未开放自助重置密码，请联系管理员处理")
 
 
-@router.post("/change-password", response_model=dict)
+@router.post("/change-password", response_model=schemas.ApiResponse)
 async def change_password(
     payload: schemas.PasswordChangeRequest,
     db: AsyncSession = Depends(deps.get_db),
@@ -135,15 +135,15 @@ async def change_password(
     return success_response(message="密码修改成功")
 
 
-@router.post("/logout", response_model=dict)
+@router.post("/logout", response_model=schemas.ApiResponse)
 async def logout():
     """
     由于当前未实现刷新令牌与服务端会话，该接口作为前端退出的占位。
     """
-    return success_response(message="已退出登录")
+    return JSONResponse(content=success_response(message="已退出登录"))
 
 
-@router.post("/refresh", response_model=dict)
+@router.post("/refresh", response_model=schemas.ApiResponse)
 async def refresh_token(
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
@@ -152,10 +152,10 @@ async def refresh_token(
     """
     access_token = create_access_token(data={"sub": current_user.username})
     token_data = schemas.AccessToken(accessToken=access_token)
-    return success_response(token_data.model_dump())
+    return JSONResponse(content=success_response(token_data.model_dump()))
 
 
-@router.get("/codes", response_model=dict)
+@router.get("/codes", response_model=schemas.ApiResponse)
 async def get_access_codes(
     current_user: models.User = Depends(deps.get_current_active_user),
 ):

@@ -31,7 +31,7 @@ const router = createRouter({
           component: () => import('@/views/AssetsView.vue'),
         },
         {
-          path: 'results',
+          path: 'results/:assetId?',
           name: 'Results',
           component: () => import('@/views/ResultsView.vue'),
         },
