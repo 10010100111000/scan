@@ -32,7 +32,9 @@ async def list_projects(
         stmt = stmt.where(models.Project.name.ilike(f"%{search}%"))
     stmt = stmt.order_by(models.Project.id.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
-    return success_response(result.scalars().all())
+    projects = result.scalars().all()
+    data = [schemas.ProjectRead.model_validate(project) for project in projects]
+    return success_response(data)
 
 
 @router.post("", response_model=schemas.ApiResponse)
@@ -54,4 +56,4 @@ async def create_project(
     db.add(db_project)
     await db.commit()
     await db.refresh(db_project)
-    return success_response(db_project)
+    return success_response(schemas.ProjectRead.model_validate(db_project))
