@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.api import deps
 from app.data import models
 from app.api.v1 import schemas
+from app.core.responses import success_response
 
 router = APIRouter()
 
@@ -37,8 +38,88 @@ def _serialize_host(host: models.Host) -> Dict[str, Any]:
         "root_asset_id": host.root_asset_id,
     }
 
+
+def _serialize_port(port: models.Port) -> Dict[str, Any]:
+    ip_address = port.ip_address.ip_address if port.ip_address else None
+    root_asset_id = port.ip_address.root_asset_id if port.ip_address else None
+    return {
+        "id": port.id,
+        "ip": ip_address,
+        "port": port.port_number,
+        "service": port.service_name,
+        "root_asset_id": root_asset_id,
+    }
+
+
+def _serialize_http_service(service: models.HTTPService) -> Dict[str, Any]:
+    return {
+        "id": service.id,
+        "url": service.url,
+        "title": service.title,
+        "tech": service.tech,
+        "status": service.status_code,
+    }
+
+
+def _serialize_vulnerability(vuln: models.Vulnerability) -> Dict[str, Any]:
+    return {
+        "id": vuln.id,
+        "name": vuln.vulnerability_name,
+        "severity": vuln.severity,
+        "url": vuln.matched_at,
+        "template_id": vuln.template_id,
+        "details": vuln.details,
+        "host_id": vuln.host_id,
+        "http_service_id": vuln.http_service_id,
+        "created_at": vuln.created_at,
+        "updated_at": vuln.updated_at,
+    }
+
+
+@router.get("/hosts/{host_id}", response_model=schemas.ApiResponse)
+async def get_host_detail_global(
+    host_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    host = await db.get(models.Host, host_id)
+    if not host:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
+    await db.refresh(host, attribute_names=["ip_addresses"])
+    return success_response(_serialize_host(host))
+
+
+@router.get("/ports/{port_id}", response_model=schemas.ApiResponse)
+async def get_port_detail_global(
+    port_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    stmt = (
+        select(models.Port)
+        .options(selectinload(models.Port.ip_address))
+        .where(models.Port.id == port_id)
+    )
+    result = await db.execute(stmt)
+    port = result.scalars().first()
+    if not port:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Port not found")
+    return success_response(_serialize_port(port))
+
+
+@router.get("/vulns/{vuln_id}", response_model=schemas.ApiResponse)
+async def get_vuln_detail_global(
+    vuln_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    vuln = await db.get(models.Vulnerability, vuln_id)
+    if not vuln:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vulnerability not found")
+    return success_response(_serialize_vulnerability(vuln))
+
 # --- 1. 获取子域名 (Hosts) - Cursor Based Pagination ---
-@router.get("/assets/{asset_id}/hosts", response_model=Dict[str, Any])
+@router.get("/assets/{asset_id}/hosts", response_model=schemas.ApiResponse)
 async def get_asset_hosts(
     asset_id: int,
     limit: int = Query(100, ge=1, le=1000),
@@ -70,7 +151,7 @@ async def get_asset_hosts(
     items = hosts[:real_limit]
     next_cursor = items[-1].id if has_more and items else None
 
-    return {
+    data = {
         "items": [
             _serialize_host(h) for h in items
         ],
@@ -78,9 +159,10 @@ async def get_asset_hosts(
         "has_more": has_more,
         "limit": real_limit,
     }
+    return success_response(data)
 
 
-@router.get("/assets/{asset_id}/hosts/{host_id}", response_model=Dict[str, Any])
+@router.get("/assets/{asset_id}/hosts/{host_id}", response_model=schemas.ApiResponse)
 async def get_host_detail(
     asset_id: int,
     host_id: int,
@@ -91,10 +173,10 @@ async def get_host_detail(
     if not host or host.root_asset_id != asset_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
     await db.refresh(host, attribute_names=["ip_addresses"])
-    return _serialize_host(host)
+    return success_response(_serialize_host(host))
 
 
-@router.post("/assets/{asset_id}/hosts", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+@router.post("/assets/{asset_id}/hosts", response_model=schemas.ApiResponse, status_code=status.HTTP_201_CREATED)
 async def create_host_for_asset(
     asset_id: int,
     payload: HostCreatePayload,
@@ -145,10 +227,10 @@ async def create_host_for_asset(
         await db.commit()
         await db.refresh(host, attribute_names=["ip_addresses"])
 
-    return _serialize_host(host)
+    return success_response(_serialize_host(host))
 
 
-@router.patch("/assets/{asset_id}/hosts/{host_id}", response_model=Dict[str, Any])
+@router.patch("/assets/{asset_id}/hosts/{host_id}", response_model=schemas.ApiResponse)
 async def update_host_for_asset(
     asset_id: int,
     host_id: int,
@@ -167,10 +249,10 @@ async def update_host_for_asset(
 
     await db.commit()
     await db.refresh(host, attribute_names=["ip_addresses"])
-    return _serialize_host(host)
+    return success_response(_serialize_host(host))
 
 
-@router.delete("/assets/{asset_id}/hosts/{host_id}", response_model=Dict[str, str])
+@router.delete("/assets/{asset_id}/hosts/{host_id}", response_model=schemas.ApiResponse)
 async def delete_host_for_asset(
     asset_id: int,
     host_id: int,
@@ -182,12 +264,12 @@ async def delete_host_for_asset(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
     await db.delete(host)
     await db.commit()
-    return {"detail": "deleted"}
+    return success_response({"detail": "deleted"})
 
 # --- 2. 获取 IP 和 端口 (Ports) ---
 @router.get(
     "/assets/{asset_id}/ports",
-    response_model=List[schemas.PortSummary],
+    response_model=schemas.ApiResponse,
     summary="获取资产开放端口（分页）",
 )
 async def get_asset_ports(
@@ -198,6 +280,7 @@ async def get_asset_ports(
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """获取指定资产下的开放端口 (通过 IP -> Port 链路过滤)"""
+    real_limit = min(limit, 500)
     stmt = (
         select(models.Port)
         .options(selectinload(models.Port.ip_address))
@@ -205,26 +288,25 @@ async def get_asset_ports(
         .where(models.IPAddress.root_asset_id == asset_id)
         .order_by(models.Port.id.desc())
         .offset(skip)
-        .limit(limit)
+        .limit(real_limit + 1)
     )
     result = await db.execute(stmt)
     ports = result.scalars().all()
-    
-    data = []
-    for p in ports:
-        if p.ip_address:
-            data.append({
-                "id": p.id,
-                "ip": p.ip_address.ip_address,
-                "port": p.port_number,
-                "service": p.service_name
-            })
-    return data
+
+    has_more = len(ports) > real_limit
+    items = ports[:real_limit]
+    data = {
+        "items": [_serialize_port(p) for p in items],
+        "next_offset": skip + real_limit if has_more else None,
+        "has_more": has_more,
+        "limit": real_limit,
+    }
+    return success_response(data)
 
 # --- 3. 获取 Web 服务 ---
 @router.get(
     "/assets/{asset_id}/web",
-    response_model=List[schemas.HTTPServiceSummary],
+    response_model=schemas.ApiResponse,
     summary="获取资产 Web 服务（分页）",
 )
 async def get_asset_web(
@@ -234,6 +316,7 @@ async def get_asset_web(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
+    real_limit = min(limit, 500)
     stmt = (
         select(models.HTTPService)
         .join(models.Port, models.HTTPService.port_id == models.Port.id)
@@ -241,19 +324,24 @@ async def get_asset_web(
         .where(models.IPAddress.root_asset_id == asset_id)
         .order_by(models.HTTPService.id.desc())
         .offset(skip)
-        .limit(limit)
+        .limit(real_limit + 1)
     )
     result = await db.execute(stmt)
     services = result.scalars().all()
-    return [
-        {"id": s.id, "url": s.url, "title": s.title, "tech": s.tech, "status": s.status_code}
-        for s in services
-    ]
+    has_more = len(services) > real_limit
+    items = services[:real_limit]
+    data = {
+        "items": [_serialize_http_service(s) for s in items],
+        "next_offset": skip + real_limit if has_more else None,
+        "has_more": has_more,
+        "limit": real_limit,
+    }
+    return success_response(data)
 
 # --- 4. 获取漏洞 ---
 @router.get(
     "/assets/{asset_id}/vulns",
-    response_model=List[schemas.VulnerabilitySummary],
+    response_model=schemas.ApiResponse,
     summary="获取资产漏洞（分页）",
 )
 async def get_asset_vulns(
@@ -263,6 +351,7 @@ async def get_asset_vulns(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
+    real_limit = min(limit, 500)
     stmt = (
         select(models.Vulnerability)
         .join(models.HTTPService, models.Vulnerability.http_service_id == models.HTTPService.id, isouter=True)
@@ -275,11 +364,16 @@ async def get_asset_vulns(
         )
         .order_by(models.Vulnerability.id.desc())
         .offset(skip)
-        .limit(limit)
+        .limit(real_limit + 1)
     )
     result = await db.execute(stmt)
     vulns = result.scalars().all()
-    return [
-        {"id": v.id, "name": v.vulnerability_name, "severity": v.severity, "url": v.matched_at}
-        for v in vulns
-    ]
+    has_more = len(vulns) > real_limit
+    items = vulns[:real_limit]
+    data = {
+        "items": [{"id": v.id, "name": v.vulnerability_name, "severity": v.severity, "url": v.matched_at} for v in items],
+        "next_offset": skip + real_limit if has_more else None,
+        "has_more": has_more,
+        "limit": real_limit,
+    }
+    return success_response(data)

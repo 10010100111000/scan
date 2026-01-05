@@ -12,16 +12,15 @@ from app.data import models
 router = APIRouter()
 
 
-@router.get("/info", response_model=dict)
+@router.get("/info", response_model=schemas.ApiResponse)
 async def get_user_info(
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
     """
-    返回与 Vben Admin 期望结构一致的用户信息。
+    返回当前登录用户信息。
     """
     token = None
-    # 如果当前请求携带了 Authorization 头，会由 oauth2_scheme 解析为 token
-    # 这里无法直接获取原始 token，因此仅传递 None，前端不会依赖该字段
+    # 这里无法直接获取原始 token，因此仅传递 None
     user_info = schemas.UserInfo(
         userId=str(current_user.id),
         username=current_user.username,
