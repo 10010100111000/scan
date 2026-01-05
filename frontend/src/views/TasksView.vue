@@ -2,13 +2,13 @@
   <section class="tasks-view">
     <header class="tasks-header card-glass">
       <div>
-        <p class="text-faint">Workflow</p>
-        <h2 class="hero-title">Tasks</h2>
-        <p class="text-faint">Monitor scans, retries, and alerts without leaving the rail layout.</p>
+        <p class="text-faint">任务流</p>
+        <h2 class="hero-title">任务</h2>
+        <p class="text-faint">集中查看扫描、重试与告警。</p>
       </div>
       <div class="tasks-actions">
-        <el-input v-model="query" size="small" clearable placeholder="Search task or target" />
-        <el-select v-model="statusFilter" size="small" placeholder="Status">
+        <el-input v-model="query" size="small" clearable placeholder="搜索任务或目标" />
+        <el-select v-model="statusFilter" size="small" placeholder="状态">
           <el-option v-for="status in statusOptions" :key="status" :label="status" :value="status" />
         </el-select>
       </div>
@@ -21,7 +21,7 @@
             <h3>{{ group.title }}</h3>
             <p class="text-faint">{{ group.items.length }} tasks</p>
           </div>
-          <el-button text size="small">{{ collapsed[group.key] ? 'Expand' : 'Collapse' }}</el-button>
+          <el-button text size="small">{{ collapsed[group.key] ? '展开' : '收起' }}</el-button>
         </div>
         <div v-if="!collapsed[group.key]" class="group-body">
           <div v-for="task in group.items" :key="task.id" class="task-row">
@@ -35,7 +35,7 @@
             </div>
           </div>
           <div v-if="group.items.length === 0" class="empty-row">
-            <el-empty description="No tasks yet." />
+            <el-empty description="暂无任务。" />
           </div>
         </div>
       </div>
@@ -51,19 +51,19 @@ type TaskItem = {
   name: string
   target: string
   owner: string
-  status: 'Running' | 'Queued' | 'Failed' | 'Completed'
+  status: '进行中' | '排队中' | '失败' | '已完成'
   updated: string
 }
 
 const query = ref('')
 const statusFilter = ref('All')
-const statusOptions = ['All', 'Running', 'Queued', 'Failed', 'Completed']
+const statusOptions = ['全部', '进行中', '排队中', '失败', '已完成']
 
 const tasks = ref<TaskItem[]>([
-  { id: 1, name: 'Web scan', target: 'api.cloud.example', owner: 'Blue Team', status: 'Running', updated: '2m ago' },
-  { id: 2, name: 'Port sweep', target: 'jump.dev.lab', owner: 'Scheduler', status: 'Queued', updated: '4m ago' },
-  { id: 3, name: 'Asset discovery', target: 'corp.example', owner: 'Scheduler', status: 'Completed', updated: '12m ago' },
-  { id: 4, name: 'Credential check', target: 'vpn.example', owner: 'Red Team', status: 'Failed', updated: '32m ago' },
+  { id: 1, name: 'Web 扫描', target: 'api.cloud.example', owner: '蓝队', status: '进行中', updated: '2 分钟前' },
+  { id: 2, name: '端口巡检', target: 'jump.dev.lab', owner: '调度器', status: '排队中', updated: '4 分钟前' },
+  { id: 3, name: '资产发现', target: 'corp.example', owner: '调度器', status: '已完成', updated: '12 分钟前' },
+  { id: 4, name: '口令检查', target: 'vpn.example', owner: '红队', status: '失败', updated: '32 分钟前' },
 ])
 
 const collapsed = reactive<Record<string, boolean>>({
@@ -82,15 +82,15 @@ const filteredGroups = computed(() => {
       task.name.toLowerCase().includes(keyword) ||
       task.target.toLowerCase().includes(keyword) ||
       task.owner.toLowerCase().includes(keyword)
-    const matchesStatus = status === 'All' || task.status === status
+    const matchesStatus = status === '全部' || task.status === status
     return matchesQuery && matchesStatus
   })
 
   return [
-    { key: 'running', title: 'Running', items: filtered.filter((task) => task.status === 'Running') },
-    { key: 'queued', title: 'Queued', items: filtered.filter((task) => task.status === 'Queued') },
-    { key: 'failed', title: 'Failed', items: filtered.filter((task) => task.status === 'Failed') },
-    { key: 'completed', title: 'Completed', items: filtered.filter((task) => task.status === 'Completed') },
+    { key: 'running', title: '进行中', items: filtered.filter((task) => task.status === '进行中') },
+    { key: 'queued', title: '排队中', items: filtered.filter((task) => task.status === '排队中') },
+    { key: 'failed', title: '失败', items: filtered.filter((task) => task.status === '失败') },
+    { key: 'completed', title: '已完成', items: filtered.filter((task) => task.status === '已完成') },
   ]
 })
 
@@ -100,11 +100,11 @@ const toggleGroup = (key: string) => {
 
 const statusTag = (status: TaskItem['status']) => {
   switch (status) {
-    case 'Running':
+    case '进行中':
       return 'success'
-    case 'Queued':
+    case '排队中':
       return 'warning'
-    case 'Failed':
+    case '失败':
       return 'danger'
     default:
       return 'info'
@@ -118,6 +118,7 @@ const statusTag = (status: TaskItem['status']) => {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  width: 100%;
 }
 
 .tasks-header {

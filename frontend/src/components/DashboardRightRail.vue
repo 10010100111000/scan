@@ -3,24 +3,24 @@
     <div class="card-glass rail-card">
       <div class="panel-header">
         <div>
-          <p class="text-faint">Quick filters</p>
-          <h3>Focus</h3>
+          <p class="text-faint">快捷筛选</p>
+          <h3>聚焦</h3>
         </div>
-        <el-button text size="small" type="primary">More</el-button>
+        <el-button text size="small" type="primary">更多</el-button>
       </div>
       <div class="filter-tags">
         <el-tag v-for="filter in quickFilters" :key="filter" size="large" effect="plain" class="filter-tag">
           {{ filter }}
         </el-tag>
       </div>
-      <el-button type="primary" plain block size="small">Save filter</el-button>
+      <el-button type="primary" plain block size="small">保存筛选</el-button>
     </div>
 
     <div class="card-glass rail-card">
       <div class="panel-header">
         <div>
-          <p class="text-faint">Queued tasks</p>
-          <h3>Queue</h3>
+          <p class="text-faint">排队中的任务</p>
+          <h3>队列</h3>
         </div>
       </div>
       <div class="queue-list">
@@ -29,7 +29,7 @@
             <h4>{{ job.name }}</h4>
             <p class="text-faint">{{ job.scope }}</p>
           </div>
-          <el-tag :type="job.state === 'Queued' ? 'warning' : 'info'" size="small">{{ job.state }}</el-tag>
+          <el-tag :type="job.state === '排队中' ? 'warning' : 'info'" size="small">{{ job.state }}</el-tag>
         </div>
       </div>
     </div>
@@ -37,8 +37,8 @@
     <div class="card-glass rail-card">
       <div class="panel-header">
         <div>
-          <p class="text-faint">Help & links</p>
-          <h3>Resources</h3>
+          <p class="text-faint">帮助与链接</p>
+          <h3>资源</h3>
         </div>
       </div>
       <ul class="links">
@@ -57,18 +57,18 @@
 <script setup lang="ts">
 import { Link } from '@element-plus/icons-vue'
 
-const quickFilters = ['High risk', 'New assets', 'Needs review', 'Today', 'External exposure']
+const quickFilters = ['高风险', '新增资产', '需要确认', '今天', '对外暴露']
 
 const queuedJobs = [
-  { name: 'Nightly full scan', scope: '120 targets · 5 nodes', state: 'Queued' },
-  { name: 'Directory brute-force', scope: 'api.cloud.example', state: 'Preparing' },
-  { name: 'Compliance checks', scope: 'Production assets', state: 'Queued' },
+  { name: '夜间全量扫描', scope: '120 目标 · 5 节点', state: '排队中' },
+  { name: '目录爆破', scope: 'api.cloud.example', state: '准备中' },
+  { name: '合规检查', scope: '生产资产', state: '排队中' },
 ]
 
 const helpfulLinks = [
-  { label: 'Connect real data', desc: 'Read the API guide and samples' },
-  { label: 'Risk handling', desc: 'Default priorities and scoring' },
-  { label: 'Feedback & requests', desc: 'Share needs with the team' },
+  { label: '接入真实数据', desc: '查看 API 指南与示例' },
+  { label: '风险处理', desc: '默认优先级与评分规则' },
+  { label: '反馈与需求', desc: '提交给产品待办池' },
 ]
 </script>
 
@@ -81,6 +81,7 @@ const helpfulLinks = [
   flex-direction: column;
   gap: 14px;
   min-width: 0;
+  width: 100%;
   box-sizing: border-box;
 }
 

@@ -2,25 +2,25 @@
   <section class="assets-view">
     <header class="assets-header card-glass">
       <div>
-        <p class="text-faint">Inventory</p>
-        <h2 class="hero-title">Assets</h2>
-        <p class="text-faint">Centralized asset list and exploration.</p>
+        <p class="text-faint">资产库</p>
+        <h2 class="hero-title">资产</h2>
+        <p class="text-faint">集中管理与查看资产详情。</p>
       </div>
       <div class="assets-actions">
-        <el-input v-model="query" size="small" clearable placeholder="Search asset" />
-        <el-button type="primary" size="small">Export</el-button>
+        <el-input v-model="query" size="small" clearable placeholder="搜索资产" />
+        <el-button type="primary" size="small">导出</el-button>
       </div>
     </header>
 
     <div class="card-glass assets-table">
       <el-table :data="filteredAssets" size="small" stripe>
-        <el-table-column prop="name" label="Asset" min-width="180" />
-        <el-table-column prop="type" label="Type" width="120" />
-        <el-table-column prop="owner" label="Owner" width="160" />
-        <el-table-column prop="updated" label="Updated" width="140" />
-        <el-table-column prop="status" label="Status" width="120">
+        <el-table-column prop="name" label="资产" min-width="180" />
+        <el-table-column prop="type" label="类型" width="120" />
+        <el-table-column prop="owner" label="负责人" width="160" />
+        <el-table-column prop="updated" label="更新时间" width="140" />
+        <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.status === 'Active' ? 'success' : 'info'">{{ row.status }}</el-tag>
+            <el-tag size="small" :type="row.status === '活跃' ? 'success' : 'info'">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -37,15 +37,15 @@ type AssetItem = {
   type: string
   owner: string
   updated: string
-  status: 'Active' | 'Paused'
+  status: '活跃' | '暂停'
 }
 
 const query = ref('')
 
 const assets = ref<AssetItem[]>([
-  { id: 1, name: 'api.cloud.example', type: 'Domain', owner: 'Blue Team', updated: 'Today', status: 'Active' },
-  { id: 2, name: '10.12.3.21', type: 'IP', owner: 'Infra', updated: 'Yesterday', status: 'Active' },
-  { id: 3, name: 'cdn.edge.internal', type: 'Domain', owner: 'Ops', updated: '2 days ago', status: 'Paused' },
+  { id: 1, name: 'api.cloud.example', type: 'Domain', owner: '蓝队', updated: '今天', status: '活跃' },
+  { id: 2, name: '10.12.3.21', type: 'IP', owner: '基础设施', updated: '昨天', status: '活跃' },
+  { id: 3, name: 'cdn.edge.internal', type: 'Domain', owner: '运维', updated: '2 天前', status: '暂停' },
 ])
 
 const filteredAssets = computed(() => {
@@ -63,6 +63,7 @@ const filteredAssets = computed(() => {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  width: 100%;
 }
 
 .assets-header {

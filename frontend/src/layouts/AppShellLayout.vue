@@ -58,6 +58,7 @@ const showRightRail = computed(() => route.meta.showRightRail === true)
 const gridStyle = computed(() => ({
   '--rail-width': railCollapsed.value ? '84px' : '260px',
   '--right-width': showRightRail.value ? '320px' : '0px',
+  '--main-min': '720px',
 }))
 
 const toggleRail = () => {
@@ -126,11 +127,11 @@ watch(scanOverlayOpen, (isOpen) => {
 
 .app-shell__grid {
   display: grid;
-  grid-template-columns: var(--rail-width) minmax(720px, 1fr) var(--right-width);
-  gap: 16px;
+  grid-template-columns: var(--rail-width) minmax(var(--main-min), 1fr) var(--right-width);
+  gap: 12px;
   padding: 24px;
   min-height: 100vh;
-  min-width: calc(var(--rail-width) + 720px + var(--right-width));
+  min-width: calc(var(--rail-width) + var(--main-min) + var(--right-width));
   transition: grid-template-columns 0.2s ease;
   box-sizing: border-box;
 }
@@ -142,11 +143,18 @@ watch(scanOverlayOpen, (isOpen) => {
 
 .app-shell__main {
   min-width: 0;
-  display: flex;
+  width: 100%;
+  display: block;
+}
+
+.app-shell__main > * {
+  width: 100%;
+  min-width: 0;
 }
 
 .app-shell__right {
   min-width: 0;
+  width: 100%;
 }
 
 :global(body.scan-overlay-open) {

@@ -2,10 +2,10 @@
   <aside :class="['nav-rail', 'card-glass', { collapsed }]">
     <div class="nav-rail__top">
       <div class="brand" v-if="!collapsed">
-        <p class="brand__eyebrow">SCAN · CONTROL</p>
+        <p class="brand__eyebrow">SCAN · 控制</p>
         <h3>Attack Surface</h3>
       </div>
-      <el-button circle size="small" @click="$emit('toggle')" aria-label="Toggle navigation">
+      <el-button circle size="small" @click="$emit('toggle')" aria-label="切换导航宽度">
         <el-icon>
           <component :is="collapsed ? Expand : Fold" />
         </el-icon>
@@ -14,7 +14,7 @@
 
     <el-button class="new-scan" type="primary" plain block @click="openScan">
       <el-icon><Plus /></el-icon>
-      <span v-if="!collapsed">New Scan</span>
+      <span v-if="!collapsed">新建扫描</span>
     </el-button>
 
     <div class="nav-list">
@@ -45,11 +45,11 @@ const router = useRouter()
 const { open: openScan } = useScanOverlay()
 
 const navLinks: Array<{ label: string; icon: Component; route: RouteLocationRaw }> = [
-  { label: 'Dashboard', icon: DataBoard, route: { name: 'Dashboard' } },
-  { label: 'Tasks', icon: Timer, route: { name: 'Tasks' } },
-  { label: 'Assets', icon: Monitor, route: { name: 'Assets' } },
-  { label: 'Setup', icon: Compass, route: { name: 'Setup' } },
-  { label: 'Account', icon: User, route: { name: 'Login' } },
+  { label: '仪表盘', icon: DataBoard, route: { name: 'Dashboard' } },
+  { label: '任务流', icon: Timer, route: { name: 'Tasks' } },
+  { label: '资产', icon: Monitor, route: { name: 'Assets' } },
+  { label: '初始化', icon: Compass, route: { name: 'Setup' } },
+  { label: '账号', icon: User, route: { name: 'Login' } },
 ]
 
 const isActive = (navRoute: RouteLocationRaw) => router.resolve(navRoute).href === route.fullPath

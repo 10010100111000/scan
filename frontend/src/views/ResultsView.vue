@@ -2,23 +2,23 @@
   <section class="results-view">
     <header class="results-header card-glass">
       <div>
-        <p class="text-faint">Results</p>
-        <h2 class="hero-title">Scan Findings</h2>
-        <p class="text-faint">Filter and review discovered assets, services, and issues.</p>
+        <p class="text-faint">结果</p>
+        <h2 class="hero-title">扫描发现</h2>
+        <p class="text-faint">筛选并查看资产、服务与问题。</p>
       </div>
       <div class="results-actions">
-        <el-input v-model="query" size="small" clearable placeholder="Search host or issue" />
-        <el-select v-model="severity" size="small" placeholder="Severity">
+        <el-input v-model="query" size="small" clearable placeholder="搜索主机或问题" />
+        <el-select v-model="severity" size="small" placeholder="严重度">
           <el-option v-for="level in severityOptions" :key="level" :label="level" :value="level" />
         </el-select>
-        <el-button size="small" type="primary">Refresh</el-button>
+        <el-button size="small" type="primary">刷新</el-button>
       </div>
     </header>
 
     <section class="results-grid">
       <div class="card-glass results-card">
         <div class="card-header">
-          <h3>Subdomains</h3>
+          <h3>子域名</h3>
           <el-tag size="small" effect="plain">{{ filteredHosts.length }}</el-tag>
         </div>
         <div class="card-body">
@@ -34,7 +34,7 @@
 
       <div class="card-glass results-card">
         <div class="card-header">
-          <h3>Vulnerabilities</h3>
+          <h3>漏洞</h3>
           <el-tag size="small" effect="plain">{{ filteredVulns.length }}</el-tag>
         </div>
         <div class="card-body">
@@ -55,22 +55,22 @@
 import { computed, ref } from 'vue'
 
 type Host = { id: number; name: string; ip: string; status: string }
-type Vuln = { id: number; title: string; target: string; severity: 'Low' | 'Medium' | 'High' | 'Critical' }
+type Vuln = { id: number; title: string; target: string; severity: '低' | '中' | '高' | '严重' }
 
 const query = ref('')
-const severity = ref('All')
-const severityOptions = ['All', 'Low', 'Medium', 'High', 'Critical']
+const severity = ref('全部')
+const severityOptions = ['全部', '低', '中', '高', '严重']
 
 const hosts = ref<Host[]>([
-  { id: 1, name: 'api.cloud.example', ip: '10.12.3.21', status: 'Alive' },
-  { id: 2, name: 'cdn.edge.internal', ip: '172.19.4.11', status: 'Alive' },
-  { id: 3, name: 'jump.dev.lab', ip: '10.8.0.5', status: 'Idle' },
+  { id: 1, name: 'api.cloud.example', ip: '10.12.3.21', status: '在线' },
+  { id: 2, name: 'cdn.edge.internal', ip: '172.19.4.11', status: '在线' },
+  { id: 3, name: 'jump.dev.lab', ip: '10.8.0.5', status: '空闲' },
 ])
 
 const vulns = ref<Vuln[]>([
-  { id: 1, title: 'Legacy admin panel', target: 'api.cloud.example', severity: 'High' },
-  { id: 2, title: 'Outdated nginx', target: 'cdn.edge.internal', severity: 'Medium' },
-  { id: 3, title: 'Weak SSH banner', target: 'jump.dev.lab', severity: 'Low' },
+  { id: 1, title: '历史管理面板', target: 'api.cloud.example', severity: '高' },
+  { id: 2, title: 'nginx 版本过旧', target: 'cdn.edge.internal', severity: '中' },
+  { id: 3, title: 'SSH 标识信息暴露', target: 'jump.dev.lab', severity: '低' },
 ])
 
 const filteredHosts = computed(() => {
@@ -86,18 +86,18 @@ const filteredVulns = computed(() => {
   return vulns.value.filter((vuln) => {
     const matchesQuery =
       !keyword || vuln.title.toLowerCase().includes(keyword) || vuln.target.toLowerCase().includes(keyword)
-    const matchesSeverity = severity.value === 'All' || vuln.severity === severity.value
+    const matchesSeverity = severity.value === '全部' || vuln.severity === severity.value
     return matchesQuery && matchesSeverity
   })
 })
 
 const tagType = (level: Vuln['severity']) => {
   switch (level) {
-    case 'Critical':
+    case '严重':
       return 'danger'
-    case 'High':
+    case '高':
       return 'danger'
-    case 'Medium':
+    case '中':
       return 'warning'
     default:
       return 'info'
@@ -111,6 +111,7 @@ const tagType = (level: Vuln['severity']) => {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  width: 100%;
 }
 
 .results-header {
