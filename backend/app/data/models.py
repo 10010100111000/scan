@@ -220,6 +220,9 @@ class ScanTask(Base):
     asset_id = Column(Integer, ForeignKey("assets.id"), nullable=True) # 关联到根资产
 
     config_name = Column(String, nullable=False, index=True) # 使用的 scanners.yaml 中的配置名
+    step_name = Column(String, nullable=True, index=True) # 策略步骤名称（通常与 config_name 一致）
+    stage = Column(String, nullable=True, index=True) # 扫描阶段（例如 subdomain/portscan/web）
+    artifact_path = Column(Text, nullable=True) # 扫描产物路径（如原始输出文件）
     status = Column(Enum("pending", "running", "completed", "failed", name="task_status_enum"), default="pending", nullable=False, index=True)
     log = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

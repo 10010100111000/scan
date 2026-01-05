@@ -26,14 +26,34 @@ const router = createRouter({
           component: () => import('@/views/TasksView.vue'),
         },
         {
+          path: 'tasks/:taskId',
+          name: 'TaskDetail',
+          component: () => import('@/views/TaskDetailView.vue'),
+        },
+        {
           path: 'assets',
           name: 'Assets',
           component: () => import('@/views/AssetsView.vue'),
         },
         {
-          path: 'results',
+          path: 'results/:assetId?',
           name: 'Results',
           component: () => import('@/views/ResultsView.vue'),
+        },
+        {
+          path: 'results/hosts/:hostId',
+          name: 'HostDetail',
+          component: () => import('@/views/HostDetailView.vue'),
+        },
+        {
+          path: 'results/ports/:portId',
+          name: 'PortDetail',
+          component: () => import('@/views/PortDetailView.vue'),
+        },
+        {
+          path: 'results/vulns/:vulnId',
+          name: 'VulnDetail',
+          component: () => import('@/views/VulnDetailView.vue'),
         },
       ],
     },

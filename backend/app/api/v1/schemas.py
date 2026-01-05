@@ -12,6 +12,12 @@ class OrmModel(BaseModel):
     """统一开启 from_attributes 以兼容 ORM 对象"""
     model_config = ConfigDict(from_attributes=True)
 
+
+class ApiResponse(BaseModel):
+    code: int = Field(..., description="业务状态码，0 为成功")
+    data: Optional[Any] = Field(None, description="响应数据")
+    message: str = Field("success", description="消息提示")
+
 # --- 通用枚举 ---
 AssetTypeLiteral = Literal["domain", "cidr"]
 IPStatusLiteral = Literal["discovered", "confirmed", "archived"]
@@ -244,21 +250,38 @@ class ScanTaskCreate(ScanTaskBase):
 
 class ScanTaskRead(ScanTaskBase, OrmModel):
     id: int
+    project_id: Optional[int] = Field(None, description="归属项目 ID")
+    project_name: Optional[str] = Field(None, description="归属项目名称")
     log: Optional[str] = Field(None, description="任务执行日志 (通常只在失败时填充)")
     created_at: datetime
     completed_at: Optional[datetime] = None
+    strategy_name: Optional[str] = Field(None, description="所属扫描策略名称（若可推断）")
+    strategy_steps: Optional[List[str]] = Field(None, description="策略步骤列表（扫描配置名称）")
+    step_statuses: Optional[List["ScanTaskStepStatus"]] = Field(None, description="步骤状态列表")
+    current_step: Optional[str] = Field(None, description="当前任务对应的策略步骤名称")
+    step_name: Optional[str] = Field(None, description="策略步骤名称")
+    stage: Optional[str] = Field(None, description="扫描阶段")
+    artifact_path: Optional[str] = Field(None, description="扫描产物路径")
 
 
-class ScanConfigSummary(BaseModel):
-    name: str = Field(..., description="扫描配置名称")
-    agent_type: Optional[str] = Field(None, description="扫描代理类型（subdomain/portscan/http/vulnerability 等）")
-    description: Optional[str] = Field(None, description="配置描述")
+class ScanTaskStepStatus(BaseModel):
+    config_name: str = Field(..., description="步骤对应的扫描配置名称")
+    task_id: Optional[int] = Field(None, description="步骤对应任务 ID")
+    status: Optional[TaskStatusLiteral] = Field(None, description="步骤执行状态")
+    completed_at: Optional[datetime] = Field(None, description="步骤完成时间")
+    stage: Optional[str] = Field(None, description="步骤阶段")
+    artifact_path: Optional[str] = Field(None, description="步骤产物路径")
 
 
-class ScanConfigSummary(BaseModel):
-    name: str = Field(..., description="扫描配置名称")
-    agent_type: Optional[str] = Field(None, description="扫描代理类型（subdomain/portscan/http/vulnerability 等）")
-    description: Optional[str] = Field(None, description="配置描述")
+class ScanStrategySummary(BaseModel):
+    strategy_name: str = Field(..., description="扫描策略名称")
+    description: Optional[str] = Field(None, description="策略说明")
+    steps: List[str] = Field(default_factory=list, description="策略步骤（扫描配置名称列表）")
+
+
+class ScanSubmissionResponse(BaseModel):
+    strategy_name: str = Field(..., description="提交的扫描策略名称")
+    task_ids: List[int] = Field(default_factory=list, description="创建的扫描任务 ID 列表")
 
 # --- RawScanResult Schemas ---
 class RawScanResultBase(BaseModel):
@@ -321,7 +344,7 @@ class UserRead(OrmModel):
 
 class UserInfo(BaseModel):
     """
-    与 Vben Admin 前端期望的用户信息字段保持一致。
+    当前登录用户信息字段。
     """
     userId: str
     username: str

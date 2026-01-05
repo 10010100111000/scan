@@ -15,6 +15,8 @@ from app.data import models
 from fastapi.security import OAuth2PasswordBearer
 from app.userManage.security import decode_access_token
 
+# 前端调用使用 /api/auth/login，因此这里的 tokenUrl 与之保持一致
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 # 数据库会话“依赖”
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -40,10 +42,6 @@ async def check_first_run(db: AsyncSession = Depends(get_db)) -> bool:
 
 # --- 安全依赖 ---
 
-# 前端调用使用 /api/auth/login，因此这里的 tokenUrl 与之保持一致
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-
 async def get_current_active_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
@@ -57,7 +55,7 @@ async def get_current_active_user(
         detail="无法验证凭据",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     payload = decode_access_token(token)
     if payload is None:
         raise credentials_exception

@@ -5,6 +5,7 @@
 支持 Web 安全专注流程：Subfinder (被动) -> Nmap (主动) -> httpx (主动) -> Nuclei (主动)
 """
 import asyncio
+from pathlib import Path
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,6 +62,9 @@ async def run_scan_task_logic(task_id: int):
             parser_type = scan_config.get("output_parser_type")
             data_mapping = scan_config.get("data_mapping", {})
             agent_type = scan_config.get("agent_type")
+            # 记录任务阶段，方便前端展示“策略步骤”
+            task.stage = agent_type
+            await db.commit()
 
             # 4. 构造并执行命令
             #    对于 Web 扫描，目标通常是域名 (example.com)
@@ -77,6 +81,14 @@ async def run_scan_task_logic(task_id: int):
             stdout_bytes, stderr_bytes = await process.communicate()
             stdout = stdout_bytes.decode('utf-8', errors='ignore')
             stderr = stderr_bytes.decode('utf-8', errors='ignore')
+
+            # 保存原始输出作为产物，便于下载与溯源
+            artifacts_dir = Path("storage") / "artifacts"
+            artifacts_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = artifacts_dir / f"task_{task.id}.log"
+            artifact_path.write_text(f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}", encoding="utf-8")
+            task.artifact_path = str(artifact_path)
+            await db.commit()
             
             # 简单错误检查 (有些工具如 subfinder即使成功 stderr 也有内容，需谨慎)
             if process.returncode != 0 and not stdout:
