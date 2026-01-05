@@ -26,6 +26,12 @@ const router = createRouter({
           component: () => import('@/views/TasksView.vue'),
         },
         {
+          path: 'tasks/:id',
+          name: 'TaskDetail',
+          component: () => import('@/views/TasksDetailView.vue'),
+          meta: { showRightRail: true },
+        },
+        {
           path: 'assets',
           name: 'Assets',
           component: () => import('@/views/AssetsView.vue'),

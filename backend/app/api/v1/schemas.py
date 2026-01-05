@@ -249,6 +249,11 @@ class ScanTaskRead(ScanTaskBase, OrmModel):
     completed_at: Optional[datetime] = None
 
 
+class ScanTaskDetailRead(ScanTaskRead):
+    strategy_name: Optional[str] = Field(None, description="策略/配置名称")
+    steps: List[str] = Field(default_factory=list, description="策略步骤列表")
+
+
 class ScanConfigSummary(BaseModel):
     name: str = Field(..., description="扫描配置名称")
     agent_type: Optional[str] = Field(None, description="扫描代理类型（subdomain/portscan/http/vulnerability 等）")

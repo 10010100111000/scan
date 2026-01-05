@@ -30,8 +30,13 @@
               <p class="text-faint">{{ task.target }} · {{ task.owner }}</p>
             </div>
             <div class="task-meta">
-              <el-tag size="small" :type="statusTag(task.status)" effect="dark">{{ task.status }}</el-tag>
-              <span class="text-faint">{{ task.updated }}</span>
+              <div class="task-meta-info">
+                <el-tag size="small" :type="statusTag(task.status)" effect="dark">{{ task.status }}</el-tag>
+                <span class="text-faint">{{ task.updated }}</span>
+              </div>
+              <router-link :to="{ name: 'TaskDetail', params: { id: task.id } }">
+                <el-button size="small" text>查看详情</el-button>
+              </router-link>
             </div>
           </div>
           <div v-if="group.items.length === 0" class="empty-row">
@@ -178,6 +183,16 @@ const statusTag = (status: TaskItem['status']) => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.task-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-meta :deep(.el-button) {
+  padding: 0;
 }
 
 .empty-row {

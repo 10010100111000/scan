@@ -14,7 +14,7 @@ from app.data.session import AsyncSessionLocal
 
 router = APIRouter()
 
-@router.get("/{task_id}", response_model=schemas.ScanTaskRead)
+@router.get("/{task_id}", response_model=schemas.ScanTaskDetailRead)
 async def get_task_status(
     task_id: int,
     db: AsyncSession = Depends(deps.get_db),
@@ -30,13 +30,21 @@ async def get_task_status(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    return schemas.ScanTaskRead(
+    steps = [
+        "初始化配置",
+        "执行扫描",
+        "写入结果",
+    ]
+
+    return schemas.ScanTaskDetailRead(
         id=task.id,
         status=task.status,          # pending, running, completed, failed
         config_name=task.config_name,
         asset_id=task.asset_id,
         created_at=task.created_at,
         completed_at=task.completed_at,
+        strategy_name=task.config_name,
+        steps=steps,
         # 截取日志，避免传输过大
         log=task.log[-2000:] if task.log else ""
     )
