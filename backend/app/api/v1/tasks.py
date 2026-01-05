@@ -20,7 +20,7 @@ from app.core.config_loader import load_scan_strategies
 
 router = APIRouter()
 
-@router.get("/", response_model=schemas.ApiResponse)
+@router.get("", response_model=schemas.ApiResponse)
 async def list_recent_tasks(
     skip: int = Query(0, ge=0, description="偏移量"),
     limit: int = Query(10, ge=1, le=100, description="返回条目数"),
