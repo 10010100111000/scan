@@ -2,7 +2,8 @@ from typing import Any, List, Optional
 from datetime import datetime, timezone
 import asyncio
 import json
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
+from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -13,6 +14,9 @@ from app.data import models
 from app.api.v1 import schemas
 from app.data.session import AsyncSessionLocal
 from app.core.responses import success_response
+from app.api.v1.scans import create_strategy_tasks, create_tasks_for_steps
+from app.core.arq_config import get_arq_pool
+from app.core.config_loader import load_scan_strategies
 
 router = APIRouter()
 
@@ -65,6 +69,9 @@ async def list_recent_tasks(
                 created_at=t.created_at,
                 completed_at=t.completed_at,
                 log=t.log[-2000:] if t.log else None,
+                step_name=t.step_name,
+                stage=t.stage,
+                artifact_path=t.artifact_path,
             )
         )
     return success_response(data)
@@ -97,6 +104,21 @@ def _build_event(event_type: str, data: dict) -> str:
         "data": data,
     }
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _resolve_strategy_for_task(config_name: str) -> tuple[Optional[str], List[str]]:
+    """
+    根据任务的 config_name 推断所属策略。
+    返回 (strategy_name, steps)。如果未匹配，返回 (None, [])。
+    """
+    strategies = load_scan_strategies()
+    for strategy in strategies:
+        if not isinstance(strategy, dict):
+            continue
+        steps = [step for step in strategy.get("steps", []) if isinstance(step, str)]
+        if config_name in steps:
+            return strategy.get("strategy_name"), steps
+    return None, []
 
 
 @router.get("/stream")
@@ -172,6 +194,35 @@ async def get_task_status(
         raise HTTPException(status_code=404, detail="Task not found")
         
     project = task.asset.project if task.asset else None
+    strategy_name, strategy_steps = _resolve_strategy_for_task(task.config_name)
+    step_statuses: list[schemas.ScanTaskStepStatus] = []
+    if strategy_steps and task.asset_id:
+        steps_stmt = (
+            select(models.ScanTask)
+            .where(
+                models.ScanTask.asset_id == task.asset_id,
+                models.ScanTask.config_name.in_(strategy_steps),
+            )
+            .order_by(models.ScanTask.created_at.desc())
+        )
+        steps_result = await db.execute(steps_stmt)
+        related_tasks = steps_result.scalars().all()
+        latest_by_step: dict[str, models.ScanTask] = {}
+        for step_task in related_tasks:
+            if step_task.config_name not in latest_by_step:
+                latest_by_step[step_task.config_name] = step_task
+        for step_name in strategy_steps:
+            related = latest_by_step.get(step_name)
+            step_statuses.append(
+                schemas.ScanTaskStepStatus(
+                    config_name=step_name,
+                    task_id=related.id if related else None,
+                    status=related.status if related else None,
+                    completed_at=related.completed_at if related else None,
+                    stage=related.stage if related else None,
+                    artifact_path=related.artifact_path if related else None,
+                )
+            )
     data = schemas.ScanTaskRead(
         id=task.id,
         status=task.status,          # pending, running, completed, failed
@@ -182,6 +233,81 @@ async def get_task_status(
         created_at=task.created_at,
         completed_at=task.completed_at,
         # 截取日志，避免传输过大
-        log=task.log[-2000:] if task.log else ""
+        log=task.log[-2000:] if task.log else "",
+        strategy_name=strategy_name,
+        strategy_steps=strategy_steps or None,
+        step_statuses=step_statuses or None,
+        current_step=task.config_name,
+        step_name=task.step_name,
+        stage=task.stage,
+        artifact_path=task.artifact_path,
     )
     return success_response(data)
+
+
+@router.get("/{task_id:int}/artifact")
+async def download_task_artifact(
+    task_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    """
+    下载任务产物（原始输出文件）。
+    """
+    task = await db.get(models.ScanTask, task_id)
+    if not task or not task.artifact_path:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return FileResponse(task.artifact_path, filename=f"task_{task_id}.log")
+
+
+@router.post("/{task_id:int}/retry", response_model=schemas.ApiResponse, status_code=status.HTTP_202_ACCEPTED)
+async def retry_scan_task(
+    task_id: int,
+    mode: str = Body("strategy", embed=True, description="重试模式：strategy=重新执行策略，step=仅重试当前步骤"),
+    db: AsyncSession = Depends(deps.get_db),
+    arq_redis: Any = Depends(get_arq_pool),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    重试任务：
+    - strategy：按策略重跑全部步骤
+    - step：仅重试当前步骤
+    """
+    task = await db.get(models.ScanTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not task.asset_id:
+        raise HTTPException(status_code=400, detail="Task missing asset")
+
+    asset = await db.get(models.Asset, task.asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    if mode not in ("strategy", "step"):
+        raise HTTPException(status_code=400, detail="Invalid retry mode")
+
+    if mode == "step":
+        # 仅重试当前步骤：复用单步骤策略逻辑
+        task_ids = await create_tasks_for_steps(
+            asset=asset,
+            step_names=[task.config_name],
+            db=db,
+            arq_redis=arq_redis,
+            retrigger=True,
+            log_hint=f"重试任务：由任务 #{task.id} 触发",
+        )
+        response_data = schemas.ScanSubmissionResponse(strategy_name=task.config_name, task_ids=task_ids)
+        return success_response(response_data, message="已触发步骤重试")
+
+    strategy_name, _ = _resolve_strategy_for_task(task.config_name)
+    if not strategy_name:
+        raise HTTPException(status_code=400, detail="无法识别策略名称")
+
+    response_data = await create_strategy_tasks(
+        asset=asset,
+        strategy_name=strategy_name,
+        db=db,
+        arq_redis=arq_redis,
+        retrigger=True,
+    )
+    return success_response(response_data, message="已触发策略重试")

@@ -89,6 +89,7 @@
             <pre class="task-log">{{ selectedTask.log || '暂无日志' }}</pre>
           </div>
           <div class="detail-actions">
+            <el-button size="small" @click="goToTaskDetail">查看详情</el-button>
             <el-button size="small" :disabled="!selectedTask.asset_id" @click="goToResultDetail">
               查看结果详情
             </el-button>
@@ -174,6 +175,14 @@ const goToResultDetail = () => {
     return
   }
   router.push({ name: 'Results', params: { assetId: selectedTask.value.asset_id } })
+}
+
+const goToTaskDetail = () => {
+  if (!selectedTask.value) {
+    ElMessage.warning('请先选择任务')
+    return
+  }
+  router.push({ name: 'TaskDetail', params: { taskId: selectedTask.value.id } })
 }
 
 const statusTag = (status: ScanTask['status']) => {

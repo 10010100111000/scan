@@ -255,6 +255,22 @@ class ScanTaskRead(ScanTaskBase, OrmModel):
     log: Optional[str] = Field(None, description="任务执行日志 (通常只在失败时填充)")
     created_at: datetime
     completed_at: Optional[datetime] = None
+    strategy_name: Optional[str] = Field(None, description="所属扫描策略名称（若可推断）")
+    strategy_steps: Optional[List[str]] = Field(None, description="策略步骤列表（扫描配置名称）")
+    step_statuses: Optional[List["ScanTaskStepStatus"]] = Field(None, description="步骤状态列表")
+    current_step: Optional[str] = Field(None, description="当前任务对应的策略步骤名称")
+    step_name: Optional[str] = Field(None, description="策略步骤名称")
+    stage: Optional[str] = Field(None, description="扫描阶段")
+    artifact_path: Optional[str] = Field(None, description="扫描产物路径")
+
+
+class ScanTaskStepStatus(BaseModel):
+    config_name: str = Field(..., description="步骤对应的扫描配置名称")
+    task_id: Optional[int] = Field(None, description="步骤对应任务 ID")
+    status: Optional[TaskStatusLiteral] = Field(None, description="步骤执行状态")
+    completed_at: Optional[datetime] = Field(None, description="步骤完成时间")
+    stage: Optional[str] = Field(None, description="步骤阶段")
+    artifact_path: Optional[str] = Field(None, description="步骤产物路径")
 
 
 class ScanStrategySummary(BaseModel):

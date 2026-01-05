@@ -42,7 +42,13 @@
                   <strong>{{ host.hostname }}</strong>
                   <p class="text-faint">{{ host.ips.join(', ') || '暂无解析 IP' }}</p>
                 </div>
-                <el-tag size="small" effect="plain">{{ host.status }}</el-tag>
+                <div class="row-actions">
+                  <el-tag size="small" effect="plain">{{ host.status }}</el-tag>
+                  <el-button text size="small" @click="goHostDetail(host.id)">详情</el-button>
+                </div>
+              </div>
+              <div v-if="hostHasMore" class="load-more">
+                <el-button size="small" :loading="hostLoading" @click="loadMoreHosts">加载更多</el-button>
               </div>
             </div>
           </el-tab-pane>
@@ -57,7 +63,13 @@
                   <strong>{{ port.ip }}:{{ port.port }}</strong>
                   <p class="text-faint">{{ port.service || '未知服务' }}</p>
                 </div>
-                <el-tag size="small" effect="plain">端口</el-tag>
+                <div class="row-actions">
+                  <el-tag size="small" effect="plain">端口</el-tag>
+                  <el-button text size="small" @click="goPortDetail(port.id)">详情</el-button>
+                </div>
+              </div>
+              <div v-if="portHasMore" class="load-more">
+                <el-button size="small" :loading="portLoading" @click="loadMorePorts">加载更多</el-button>
               </div>
             </div>
           </el-tab-pane>
@@ -72,7 +84,13 @@
                   <strong>{{ service.url }}</strong>
                   <p class="text-faint">{{ service.title || '未识别标题' }}</p>
                 </div>
-                <el-tag size="small" effect="plain">{{ service.status || '未知' }}</el-tag>
+                <div class="row-actions">
+                  <el-tag size="small" effect="plain">{{ service.status || '未知' }}</el-tag>
+                  <el-button text size="small" @click="goWebAnchor(service.url)">打开</el-button>
+                </div>
+              </div>
+              <div v-if="webHasMore" class="load-more">
+                <el-button size="small" :loading="webLoading" @click="loadMoreWeb">加载更多</el-button>
               </div>
             </div>
           </el-tab-pane>
@@ -87,9 +105,15 @@
                   <strong>{{ vuln.name }}</strong>
                   <p class="text-faint">{{ vuln.url || '未记录 URL' }}</p>
                 </div>
-                <el-tag size="small" :type="severityTag(vuln.severity)" effect="dark">
-                  {{ vuln.severity.toUpperCase() }}
-                </el-tag>
+                <div class="row-actions">
+                  <el-tag size="small" :type="severityTag(vuln.severity)" effect="dark">
+                    {{ vuln.severity.toUpperCase() }}
+                  </el-tag>
+                  <el-button text size="small" @click="goVulnDetail(vuln.id)">详情</el-button>
+                </div>
+              </div>
+              <div v-if="vulnHasMore" class="load-more">
+                <el-button size="small" :loading="vulnLoading" @click="loadMoreVulns">加载更多</el-button>
               </div>
             </div>
           </el-tab-pane>
@@ -171,6 +195,23 @@ const hosts = ref<HostSummary[]>([])
 const ports = ref<PortSummary[]>([])
 const webServices = ref<HTTPServiceSummary[]>([])
 const vulns = ref<VulnerabilitySummary[]>([])
+const hostCursor = ref<number | null>(null)
+const hostHasMore = ref(false)
+const portOffset = ref(0)
+const portHasMore = ref(false)
+const webOffset = ref(0)
+const webHasMore = ref(false)
+const vulnOffset = ref(0)
+const vulnHasMore = ref(false)
+const hostLoading = ref(false)
+const portLoading = ref(false)
+const webLoading = ref(false)
+const vulnLoading = ref(false)
+
+const HOSTS_LIMIT = 50
+const PORTS_LIMIT = 50
+const WEB_LIMIT = 50
+const VULNS_LIMIT = 50
 
 const assetId = computed(() => Number(route.params.assetId || 0))
 const assetMissing = computed(() => !asset.value)
@@ -249,16 +290,28 @@ const loadResults = async () => {
     return
   }
   const id = asset.value.id
+  hostCursor.value = null
+  portOffset.value = 0
+  webOffset.value = 0
+  vulnOffset.value = 0
   const [hostData, portData, webData, vulnData] = await Promise.all([
-    fetchAssetHosts(id, { limit: 50 }),
-    fetchAssetPorts(id, { limit: 50 }),
-    fetchAssetWeb(id, { limit: 50 }),
-    fetchAssetVulns(id, { limit: 50 }),
+    fetchAssetHosts(id, { limit: HOSTS_LIMIT }),
+    fetchAssetPorts(id, { limit: PORTS_LIMIT, skip: 0 }),
+    fetchAssetWeb(id, { limit: WEB_LIMIT, skip: 0 }),
+    fetchAssetVulns(id, { limit: VULNS_LIMIT, skip: 0 }),
   ])
   hosts.value = hostData.items
-  ports.value = portData
-  webServices.value = webData
-  vulns.value = vulnData
+  hostCursor.value = hostData.next_cursor
+  hostHasMore.value = hostData.has_more
+  ports.value = portData.items
+  portOffset.value = portData.next_offset ?? 0
+  portHasMore.value = portData.has_more
+  webServices.value = webData.items
+  webOffset.value = webData.next_offset ?? 0
+  webHasMore.value = webData.has_more
+  vulns.value = vulnData.items
+  vulnOffset.value = vulnData.next_offset ?? 0
+  vulnHasMore.value = vulnData.has_more
 }
 
 const refreshAll = async () => {
@@ -280,6 +333,90 @@ const refreshAll = async () => {
 
 const goTasks = () => {
   router.push({ name: 'Tasks' })
+}
+
+const goHostDetail = (hostId: number) => {
+  router.push({ name: 'HostDetail', params: { hostId }, query: { assetId: asset.value?.id } })
+}
+
+const goPortDetail = (portId: number) => {
+  router.push({ name: 'PortDetail', params: { portId }, query: { assetId: asset.value?.id } })
+}
+
+const goVulnDetail = (vulnId: number) => {
+  router.push({ name: 'VulnDetail', params: { vulnId }, query: { assetId: asset.value?.id } })
+}
+
+const goWebAnchor = (url: string) => {
+  window.open(url, '_blank')
+}
+
+const loadMoreHosts = async () => {
+  if (!asset.value || !hostHasMore.value || hostLoading.value) {
+    return
+  }
+  hostLoading.value = true
+  try {
+    const data = await fetchAssetHosts(asset.value.id, { limit: HOSTS_LIMIT, cursor: hostCursor.value })
+    hosts.value = [...hosts.value, ...data.items]
+    hostCursor.value = data.next_cursor
+    hostHasMore.value = data.has_more
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    hostLoading.value = false
+  }
+}
+
+const loadMorePorts = async () => {
+  if (!asset.value || !portHasMore.value || portLoading.value) {
+    return
+  }
+  portLoading.value = true
+  try {
+    const data = await fetchAssetPorts(asset.value.id, { limit: PORTS_LIMIT, skip: portOffset.value })
+    ports.value = [...ports.value, ...data.items]
+    portOffset.value = data.next_offset ?? portOffset.value
+    portHasMore.value = data.has_more
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    portLoading.value = false
+  }
+}
+
+const loadMoreWeb = async () => {
+  if (!asset.value || !webHasMore.value || webLoading.value) {
+    return
+  }
+  webLoading.value = true
+  try {
+    const data = await fetchAssetWeb(asset.value.id, { limit: WEB_LIMIT, skip: webOffset.value })
+    webServices.value = [...webServices.value, ...data.items]
+    webOffset.value = data.next_offset ?? webOffset.value
+    webHasMore.value = data.has_more
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    webLoading.value = false
+  }
+}
+
+const loadMoreVulns = async () => {
+  if (!asset.value || !vulnHasMore.value || vulnLoading.value) {
+    return
+  }
+  vulnLoading.value = true
+  try {
+    const data = await fetchAssetVulns(asset.value.id, { limit: VULNS_LIMIT, skip: vulnOffset.value })
+    vulns.value = [...vulns.value, ...data.items]
+    vulnOffset.value = data.next_offset ?? vulnOffset.value
+    vulnHasMore.value = data.has_more
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    vulnLoading.value = false
+  }
 }
 
 watch(assetId, () => {
@@ -356,6 +493,18 @@ onMounted(() => {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
 }
 
 .empty-row {
