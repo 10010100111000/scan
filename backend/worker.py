@@ -5,75 +5,62 @@ ARQ 扫描工人 (Worker)。
 """
 import asyncio
 
-# 导入 ARQ 配置 (Redis 设置, 队列名, 任务名)
-from app.core.arq_config import redis_settings, ARQ_QUEUE_NAME, TASK_RUN_SCAN
+# 导入 ARQ 配置
+from app.core.arq_config import redis_settings, ARQ_QUEUE_NAME, TASK_RUN_SCAN, TASK_RUN_STRATEGY
 
 # 导入我们真正的任务执行逻辑
 from app.core.orchestrator import run_scan_task_logic
 
-# --- ARQ 任务函数 ---
-# 这个函数的名字必须和 arq_config.py 中定义的 TASK_RUN_SCAN 匹配
+# --- 1. 单个任务执行函数 (保留) ---
 async def run_scan_task(ctx, task_id: int):
     """
-    ARQ 调用这个函数来执行扫描任务。
-    'ctx' 是 ARQ 提供的上下文信息 (我们这里暂时不用)。
-    'task_id' 是我们从 API 推送过来的数据库任务 ID。
+    执行单个扫描任务。通常用于由 run_strategy_task 内部调用，
+    或者用于后台手动“重试”某个特定失败的步骤。
     """
-    print(f"Worker 收到任务: {TASK_RUN_SCAN}, task_id={task_id}")
+    print(f"[Worker] 开始执行单任务: {task_id}")
     await run_scan_task_logic(task_id)
 
+# --- 2. [新增] 策略组执行函数 (串行核心) ---
+async def run_strategy_task(ctx, task_ids: list[int]):
+    """
+    接收一组任务 ID，按顺序串行执行。
+    这解决了 Subfinder 还没入库，httpx 就开始跑的竞争问题。
+    """
+    print(f"[Worker] 收到策略组任务，包含 {len(task_ids)} 个步骤: {task_ids}")
+    
+    for index, task_id in enumerate(task_ids):
+        step_num = index + 1
+        print(f">>> [策略进度 {step_num}/{len(task_ids)}] 正在启动任务 ID: {task_id}")
+        
+        try:
+            # 关键点：这里使用 await，必须等上一步完全结束（含入库），才会循环到下一步
+            await run_scan_task_logic(task_id)
+        except Exception as e:
+            print(f"!!! 任务 {task_id} 执行异常: {e}")
+            # 决策点：如果中间一步失败了，是否继续？
+            # 目前逻辑：打印错误，继续尝试下一步（或者你可以选择在这里 break 停止后续步骤）
+    
+    print(f"[Worker] 策略组执行完毕: {task_ids}")
 
 # --- ARQ Worker 设置 ---
 class WorkerSettings:
-    """
-    ARQ Worker 的配置类。
-    ARQ 会自动查找并使用这个类。
-    """
-    # 1. Redis 连接设置
     redis_settings = redis_settings
-
-    # 2. 要监听的队列名称 (可以监听多个)
     queue_name = ARQ_QUEUE_NAME
 
-    # 3. Worker 可以执行的任务函数列表
-    functions = [run_scan_task]
+    # 注册两个函数，Worker 既能跑单任务，也能跑策略组
+    functions = [run_scan_task, run_strategy_task]
 
-    # 4. Worker 启动时执行的函数 (可选)
     async def startup(ctx):
         print("ARQ Worker 启动中...")
-        # 可以在这里预加载配置或初始化资源
         from app.core.config_loader import load_scan_configs
         try:
-            load_scan_configs() # 尝试加载一次, 确保配置可用
+            load_scan_configs()
             print("扫描配置已成功预加载。")
         except Exception as e:
             print(f"警告: Worker 启动时加载扫描配置失败: {e}")
-        print("ARQ Worker 已准备好接收任务。")
 
-    # 5. Worker 关闭时执行的函数 (可选)
     async def shutdown(ctx):
         print("ARQ Worker 关闭中...")
 
-    # 6. --- 重要的并发限制 ---
-    #    限制 worker 最多同时执行多少个任务 (保护 VPS 资源)
-    #    对于 2c/4g 的 VPS, 这个值需要谨慎设置, 例如 5 或 10
-    max_jobs = 5 
-
-    #    (未来可以根据任务类型进行更精细的限流, 如此处注释掉的示例)
-    # job_timeout = 3_600 # 单个任务最大执行时间 (秒), 例如 1 小时
-    # max_tries = 3 # 任务失败后的最大重试次数
-    # keep_result_forever = False # 不永久保留成功任务的结果在 Redis 中
-    # max_jobs_by_function_name = {
-    #     'run_scan_task': 5, # 默认并发
-    #     'run_screenshot_task': 2 # 截图任务并发限制为 2
-    # }
-
-# --- 如何运行这个 Worker ---
-# 你需要在 *另一个* 终端窗口 (与运行 uvicorn 的窗口分开)
-# 并且 *激活* 了 venv 虚拟环境的情况下,
-# 在 backend/ 目录下, 运行以下命令来启动 worker:
-#
-# arq worker.WorkerSettings
-#
-# (或者 arq worker.WorkerSettings --verbose 来查看更详细的日志)
-# Worker 会一直运行, 等待 Redis 中的新任务。
+    # 并发限制
+    max_jobs = 5

@@ -43,4 +43,5 @@ async def close_arq_pool():
         await arq_pool.close()
 
 # --- 任务函数名称常量 ---
-TASK_RUN_SCAN = "run_scan_task"
+TASK_RUN_SCAN = "run_scan_task"        # 单个任务（旧模式，保留用于重试）
+TASK_RUN_STRATEGY = "run_strategy_task" # [新增] 策略任务（新模式，串行执行一组任务）
