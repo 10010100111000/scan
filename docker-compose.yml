@@ -44,8 +44,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: pentest_worker
-    # 启动 ARQ Worker，--watch 实现代码修改后自动重启
-    command: arq worker.WorkerSettings --watch /app
+    # 启动 ARQ Worker
+    command: arq worker.WorkerSettings 
     environment:
       - DATABASE_URL=postgresql+asyncpg://pentest_user:kali@db:5432/pentest_db
       - REDIS_HOST=redis
