@@ -1,4 +1,9 @@
+// frontend/src/api/scan.ts
 import http, { request } from '@/api/http'
+
+// ==========================================
+// 1. 类型定义 (Types)
+// ==========================================
 
 export interface ScanStrategySummary {
   strategy_name: string
@@ -24,6 +29,7 @@ export interface AssetSearchResult extends Asset {
   project_name?: string | null
 }
 
+// 任务相关
 export interface ScanTask {
   id: number
   status: 'pending' | 'running' | 'completed' | 'failed'
@@ -49,16 +55,26 @@ export interface ScanTaskStepStatus {
   artifact_path?: string | null
 }
 
-export interface TaskListResponse {
-  items: ScanTask[]
-  total: number
-}
-
 export interface ScanSubmissionResponse {
   strategy_name: string
   task_ids: number[]
 }
 
+// [新增] 扫描请求参数接口 (对应后端 ScanRequest Schema)
+export interface CreateScanRequest {
+  asset_id: number
+  strategy_name: string
+}
+
+// [新增] 资产查询参数
+export interface AssetQueryParams {
+  skip?: number
+  limit?: number
+  search?: string
+  project_id?: number
+}
+
+// --- 结果详情相关类型 ---
 export interface HostSummary {
   id: number
   hostname: string
@@ -113,32 +129,99 @@ export interface OffsetListResponse<T> {
   limit: number
 }
 
-export async function fetchScanStrategies() {
-  return request<ScanStrategySummary[]>(http.get('/scan-strategies'))
+// ==========================================
+// 2. 核心 API 方法 (Core APIs)
+// ==========================================
+
+/**
+ * [Assets - Global] 获取资产列表
+ * 支持分页、搜索，以及可选的 project_id 过滤
+ * 对应后端: GET /api/v1/assets
+ */
+export async function fetchAssets(params: AssetQueryParams = {}) {
+  return request<Asset[]>(http.get('/assets', { params }))
 }
 
+/**
+ * [Assets - Helper] 获取全局资产 (不带项目过滤)
+ */
+export async function fetchGlobalAssets(params: Omit<AssetQueryParams, 'project_id'> = {}) {
+  return fetchAssets(params)
+}
+
+/**
+ * [Assets - Helper] 获取指定项目的资产
+ * 实质是调用 fetchAssets 并强制带上 project_id
+ */
+export async function fetchAssetsForProject(
+  projectId: number, 
+  params: Omit<AssetQueryParams, 'project_id'> = {}
+) {
+  return fetchAssets({ ...params, project_id: projectId })
+}
+
+/**
+ * [Assets - Search] 全局精确查找资产 (用于去重/跳转)
+ * 对应后端: GET /api/v1/assets/search
+ */
+export async function searchAssetsByName(name: string, limit = 10) {
+  return request<AssetSearchResult[]>(http.get('/assets/search', { params: { name, limit } }))
+}
+
+/**
+ * [Assets - Create] 创建新资产
+ * 对应后端: POST /api/v1/assets
+ */
+export async function createAsset(projectId: number, payload: { name: string; type: 'domain' | 'cidr' }) {
+  // 注意：后端现在要求 project_id 在 Body 中
+  return request<Asset>(http.post('/assets', {
+    ...payload,
+    project_id: projectId
+  }))
+}
+
+/**
+ * [Assets - Detail] 获取单个资产详情
+ */
+export async function fetchAssetById(assetId: number) {
+  return request<Asset>(http.get(`/assets/${assetId}`))
+}
+
+/**
+ * [Scans - Action] 触发扫描任务
+ * 对应后端: POST /api/v1/scans
+ */
+export async function triggerScan(payload: CreateScanRequest) {
+  return request<ScanSubmissionResponse>(http.post('/scans', payload))
+}
+
+/**
+ * [Projects] 获取项目列表
+ */
 export async function fetchProjects(params: { skip?: number; limit?: number; search?: string } = {}) {
   return request<Project[]>(http.get('/projects', { params }))
 }
 
+/**
+ * [Projects] 创建项目
+ */
 export async function createProject(payload: { name: string }) {
   return request<Project>(http.post('/projects', payload))
 }
 
-export async function createAsset(projectId: number, payload: { name: string; type: 'domain' | 'cidr' }) {
-  return request<Asset>(http.post(`/projects/${projectId}/assets`, payload))
+/**
+ * [Strategies] 获取扫描策略
+ */
+export async function fetchScanStrategies() {
+  return request<ScanStrategySummary[]>(http.get('/scan-strategies'))
 }
 
-export async function triggerScan(assetId: number, payload: { strategy_name: string }) {
-  return request<ScanSubmissionResponse>(http.post(`/assets/${assetId}/scan`, payload))
-}
+// ==========================================
+// 3. 任务与结果 API (Tasks & Results)
+// ==========================================
 
-
-export async function fetchAssetsForProject(
-  projectId: number,
-  params: { skip?: number; limit?: number; search?: string } = {}
-) {
-  return request<Asset[]>(http.get(`/projects/${projectId}/assets`, { params }))
+export async function listTasks(params: Record<string, unknown> = {}) {
+  return request<ScanTask[]>(http.get('/tasks', { params }))
 }
 
 export async function fetchTask(taskId: number) {
@@ -149,9 +232,7 @@ export async function retryTask(taskId: number, payload: { mode: 'strategy' | 's
   return request<ScanSubmissionResponse>(http.post(`/tasks/${taskId}/retry`, payload))
 }
 
-export async function searchAssetsByName(name: string, limit = 10) {
-  return request<AssetSearchResult[]>(http.get('/assets/search', { params: { name, limit } }))
-}
+// --- 结果查询接口 (Host/Port/Web/Vuln) ---
 
 export async function fetchAssetHosts(
   assetId: number,
@@ -191,16 +272,4 @@ export async function fetchPortDetail(portId: number) {
 
 export async function fetchVulnDetail(vulnId: number) {
   return request<VulnerabilitySummary>(http.get(`/results/vulns/${vulnId}`))
-}
-
-export async function listTasks(params: Record<string, unknown> = {}) {
-  return request<ScanTask[]>(http.get('/tasks', { params }))
-}
-
-export async function fetchAssets(params: Record<string, unknown> = {}) {
-  return request<Asset[]>(http.get('/assets', { params }))
-}
-
-export async function fetchAssetById(assetId: number) {
-  return request<Asset>(http.get(`/assets/${assetId}`))
 }

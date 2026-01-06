@@ -128,28 +128,31 @@ async def create_tasks_for_steps(
     return task_ids
 
 
-@router.post("/assets/{asset_id}/scan", response_model=schemas.ApiResponse, status_code=status.HTTP_202_ACCEPTED)
-async def trigger_scan_for_asset(
-    asset_id: int,
-    strategy_name: str = Body(..., embed=True, description="要使用的扫描策略名称"),
+@router.post("/", response_model=schemas.ApiResponse, status_code=status.HTTP_202_ACCEPTED)
+async def create_scan_job(
+    scan_in: schemas.ScanRequest,  # <--- 使用 Body 接收所有参数
     db: AsyncSession = Depends(deps.get_db),
     arq_redis: ArqRedis = Depends(get_arq_pool),
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
     """
-    为一个根资产触发一个新的扫描策略任务（多阶段）。
+    创建一个新的扫描作业。
     """
-    asset = await db.get(models.Asset, asset_id)
+    # 1. 验证资产是否存在
+    asset = await db.get(models.Asset, scan_in.asset_id)
     if not asset:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"资产 ID {asset_id} 不存在")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"资产 ID {scan_in.asset_id} 不存在")
 
+    # 2. 调用原有的任务创建逻辑
     response_data = await create_strategy_tasks(
         asset=asset,
-        strategy_name=strategy_name,
+        strategy_name=scan_in.strategy_name,
         db=db,
         arq_redis=arq_redis,
         retrigger=False,
     )
+
     if response_data.task_ids:
-        return success_response(response_data)
+        return success_response(response_data, message="扫描任务已创建")
+    
     return success_response(response_data, message="已存在相关扫描结果，未重复触发扫描")

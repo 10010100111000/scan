@@ -58,21 +58,15 @@ class AssetBase(BaseModel):
     type: AssetTypeLiteral = Field(..., description="根资产的类型", example="domain")
 
 class AssetCreate(AssetBase):
-    # 创建时不需要 project_id, 因为它从 URL 路径获取
-    # 我们可以在这里添加一个示例, FastAPI 会在 /docs 的 Request Body 中显示它
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "example.com",
-                "type": "domain"
-            }
-        }
-    )
+ # [修改] 新增 project_id 字段，设为必填
+    project_id: int = Field(..., description="所属项目的ID")
 
 class AssetRead(AssetBase, OrmModel):
     id: int
     project_id: int
     created_at: datetime
+    # 允许 ORM 模型自动转换
+    model_config = ConfigDict(from_attributes=True)
 
 class AssetSearchRead(AssetRead):
     project_name: Optional[str] = None
@@ -370,3 +364,9 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+
+# --- 新增：扫描请求模型 ---
+class ScanRequest(BaseModel):
+    asset_id: int = Field(..., description="要扫描的目标资产ID")
+    strategy_name: str = Field(..., description="使用的扫描策略名称")

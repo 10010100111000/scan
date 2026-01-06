@@ -11,7 +11,7 @@
         What do you want to <span class="text-blue-600">scan</span>?
       </h1>
       <p class="text-gray-500 dark:text-gray-400 mb-10 text-lg">
-        输入域名、IP 或 CIDR。如果资产已存在，我们将直接带你查看详情。
+        输入域名、IP 或 CIDR。系统将自动检测目标是否存在。
       </p>
 
       <div class="relative group">
@@ -85,7 +85,7 @@
 
             <div v-else class="flex flex-col h-full">
               <div class="text-xs text-gray-400 mb-2 px-1">切换项目</div>
-              <div class="max-h-56 overflow-y-auto space-y-1 custom-scrollbar">
+              <div class="max-h-56 overflow-y-auto custom-scrollbar">
                 <div 
                   v-for="p in projects" :key="p.id"
                   @click="selectProject(p.id)"
@@ -148,13 +148,15 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { Search, Folder, Lightning, ArrowDown, Check, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-// 引入后端 API
+
+// --- 核心引入：与最新的 api/scan.ts 保持一致 ---
 import { 
-  getProjects, 
-  submitScan, 
-  getAssets, 
-  fetchScanStrategies,
+  fetchProjects,
+  searchAssetsByName,     // [Search]
+  triggerScan,            // [Scan]
+  createAsset,            // [Create Asset]
   createProject,
+  fetchScanStrategies,
   type ScanStrategySummary 
 } from '@/api/scan'
 
@@ -162,25 +164,25 @@ const router = useRouter()
 const loading = ref(false)
 const target = ref('')
 
-// --- 项目相关状态 ---
+// --- 项目数据 ---
 const projects = ref<any[]>([])
 const selectedProjectId = ref<number | null>(null)
 const projPopoverVisible = ref(false)
 
-// 内嵌新建项目状态
+// --- 新建项目状态 ---
 const isCreatingProject = ref(false)
 const newProjectName = ref('')
 const createLoading = ref(false)
-const newProjectInputRef = ref() // 用于自动聚焦
+const newProjectInputRef = ref()
 
-// --- 策略相关状态 ---
+// --- 策略数据 ---
 interface UIStrategy { value: string; label: string; desc: string }
 const strategies = ref<UIStrategy[]>([])
 const selectedStrategy = ref('') 
 
 const recentTargets = ref(['example.com', 'scanme.nmap.org'])
 
-// --- 计算属性 ---
+// 计算属性
 const currentProjectName = computed(() => {
   const p = projects.value.find(p => p.id === selectedProjectId.value)
   return p ? p.name : '默认项目'
@@ -190,18 +192,20 @@ const currentStrategyLabel = computed(() => {
   return strategies.value.find(s => s.value === selectedStrategy.value)?.label || '选择策略'
 })
 
-// --- 初始化加载 ---
+// 初始化加载
 onMounted(async () => {
   try {
     const [projRes, stratRes] = await Promise.all([
-      getProjects(),
+      fetchProjects(),
       fetchScanStrategies()
     ])
 
-    // 1. 处理项目
-    const list = projRes.data || projRes
+    // 处理项目 (兼容数组或对象返回)
+    // 根据最新的 api/scan.ts，request 会直接返回 T (即 Project[])，但为了稳健保留校验
+    const list = Array.isArray(projRes) ? projRes : (projRes['data'] || [])
     projects.value = list
-    // 智能默认选中
+    
+    // 默认选中 Default 或 第一个
     const defaultProj = list.find((p: any) => p.name === 'Default')
     if (defaultProj) {
       selectedProjectId.value = defaultProj.id
@@ -209,8 +213,9 @@ onMounted(async () => {
       selectedProjectId.value = list[0].id
     }
 
-    // 2. 处理策略
-    strategies.value = stratRes.map((s: ScanStrategySummary) => ({
+    // 处理策略
+    const stratList = Array.isArray(stratRes) ? stratRes : (stratRes['data'] || [])
+    strategies.value = stratList.map((s: ScanStrategySummary) => ({
       value: s.strategy_name,
       label: formatStrategyName(s.strategy_name),
       desc: s.description || s.steps.join(' -> ')
@@ -218,41 +223,31 @@ onMounted(async () => {
     if (strategies.value.length > 0) {
       selectedStrategy.value = strategies.value[0].value
     }
-
   } catch (e) {
+    console.error(e)
     ElMessage.error('初始化数据失败')
   }
 })
 
-// --- 项目交互逻辑 (方案 B 核心) ---
-
-// 切换到新建模式
+// --- 项目交互逻辑 (内嵌式新建) ---
 const switchToCreateMode = () => {
   isCreatingProject.value = true
-  // 等待 DOM 更新后聚焦输入框
   nextTick(() => {
     newProjectInputRef.value?.focus()
   })
 }
 
-// 提交新建项目
 const handleInlineCreate = async () => {
   const name = newProjectName.value.trim()
   if (!name) return
-
   createLoading.value = true
   try {
     const newProject = await createProject({ name })
-    
-    // 1. 加到列表顶部
     projects.value.unshift(newProject)
-    // 2. 自动选中
     selectedProjectId.value = newProject.id
-    // 3. 提示并重置
     ElMessage.success('项目已创建')
     resetInlineCreate()
-    projPopoverVisible.value = false // 关闭下拉框
-
+    projPopoverVisible.value = false
   } catch (e: any) {
     ElMessage.error(e.message || '创建项目失败')
   } finally {
@@ -260,19 +255,17 @@ const handleInlineCreate = async () => {
   }
 }
 
-// 重置新建状态
 const resetInlineCreate = () => {
   isCreatingProject.value = false
   newProjectName.value = ''
 }
 
-// 选择项目
 const selectProject = (id: number) => {
   selectedProjectId.value = id
   projPopoverVisible.value = false
 }
 
-// --- 扫描提交逻辑 ---
+// --- 核心动作逻辑：Search First, Then Scan ---
 const handleAction = async () => {
   const input = target.value.trim()
   if (!input) return ElMessage.warning('请输入目标')
@@ -282,32 +275,48 @@ const handleAction = async () => {
   loading.value = true
 
   try {
-    // 1. 检查是否存在
-    const existRes = await getAssets(selectedProjectId.value, { search: input, limit: 1 })
-    const existAssets = Array.isArray(existRes) ? existRes : (existRes.items || existRes.data || [])
+    // 1. [Search 阶段] 全局查找
+    const existRes = await searchAssetsByName(input) 
+    
+    // 兼容处理
+    const existAssets = Array.isArray(existRes) ? existRes : (existRes['items'] || existRes['data'] || [])
     const exactMatch = existAssets.find((a: any) => a.name === input)
 
     if (exactMatch) {
-      ElMessage.success(`资产已存在，正在跳转...`)
+      // 场景 A: 找到了 -> 跳转详情 (Lookup/Read)
+      const fromProject = exactMatch.project_name ? ` (位于: ${exactMatch.project_name})` : ''
+      ElMessage.success(`资产已存在${fromProject}，跳转查看...`)
       router.push(`/results/${exactMatch.id}`)
     } else {
-      // 2. 提交新任务
-      await submitScan({
-        project_id: selectedProjectId.value,
-        asset_name: input,
+      // 场景 B: 没找到 -> 新建并扫描 (Create + Scan)
+      
+      // 判断类型
+      const isCidr = input.includes('/') || /^\d+\.\d+\.\d+\.\d+$/.test(input)
+      const type = isCidr ? 'cidr' : 'domain'
+
+      // 2. [Create Asset] 使用新签名: (projectId, payload)
+      const newAsset = await createAsset(selectedProjectId.value, { 
+        name: input, 
+        type: type 
+      })
+
+      // 3. [Scan] 使用新签名: (payload)
+      await triggerScan({
+        asset_id: newAsset.id,
         strategy_name: selectedStrategy.value
       })
-      ElMessage.success(`扫描任务已启动`)
+      
+      ElMessage.success(`新扫描任务已启动`)
       router.push('/tasks')
     }
   } catch (e: any) {
+    console.error(e)
     ElMessage.error(e.message || '操作失败')
   } finally {
     loading.value = false
   }
 }
 
-// 辅助函数: 美化策略名
 const formatStrategyName = (rawName: string) => {
   if (rawName.includes('快速')) return '⚡ ' + rawName.replace(/^\d+\.\s*/, '')
   if (rawName.includes('深度')) return '🐢 ' + rawName.replace(/^\d+\.\s*/, '')

@@ -8,24 +8,34 @@ from app.api.v1 import auth, projects, assets, tasks, results, users, scan_confi
 
 api_router = APIRouter()
 
-# 1. 包含“认证”路由 ( /login, /setup )
+# === 基础功能 ===
+# /api/v1/auth
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-
-# 用户信息
+# /api/v1/user
 api_router.include_router(users.router, prefix="/user", tags=["user"])
 
-# 2. 包含“项目”路由 ( /projects )
+
+# === 核心资源 (Assets & Projects) ===
+# /api/v1/projects
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 
-# 3. *** 新增：包含“资产”路由 ***
-api_router.include_router(assets.router, tags=["assets"])
-# 扫描策略
-api_router.include_router(scan_configs.router, tags=["scan-strategies"])
-# 扫描任务触发
-api_router.include_router(scans.router, tags=["scans"])
-# --- 新增 ---
-# 任务状态查询
+# [重点修改] /api/v1/assets
+# 包含: GET /assets, GET /assets/search, POST /assets
+api_router.include_router(assets.router, prefix="/assets", tags=["assets"])
+
+
+# === 核心动作 (Scanning) ===
+# [重点修改] /api/v1/scans
+# 包含: POST /scans (触发扫描)
+api_router.include_router(scans.router, prefix="/scans", tags=["scans"])
+
+# /api/v1/scan-strategies (策略配置)
+api_router.include_router(scan_configs.router, prefix="/scan-strategies", tags=["scan-strategies"])
+
+
+# === 结果与监控 (Results & Tasks) ===
+# /api/v1/tasks (任务状态)
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 
-# 结果数据查询
+# /api/v1/results (扫描结果)
 api_router.include_router(results.router, prefix="/results", tags=["results"])

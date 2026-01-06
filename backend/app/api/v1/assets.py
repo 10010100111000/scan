@@ -1,6 +1,7 @@
 # backend/app/api/v1/assets.py
 """
-API 路由：用于根资产 (Assets) 和触发扫描
+API 路由：用于根资产 (Assets) 管理
+路径前缀: /assets
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
@@ -9,40 +10,104 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.exc import DBAPIError, IntegrityError, StatementError
 
-from app.api import deps # 导入我们的依赖
+from app.api import deps
 from app.data import models
-from app.api.v1 import schemas # 导入 Pydantic 模型
-
+from app.api.v1 import schemas
 from app.core.responses import success_response
 
-# 1. 创建 APIRouter
 router = APIRouter()
 
-@router.get("/assets", response_model=schemas.ApiResponse)
-async def list_assets_global(
+# 1. 列表查询 (GET /)
+# 整合了 "全局列表" 和 "项目资产列表" 的功能
+@router.get("", response_model=schemas.ApiResponse)
+async def list_assets(
     skip: int = Query(0, ge=0, description="偏移量"),
     limit: int = Query(20, ge=1, le=200, description="返回条目数"),
     search: Optional[str] = Query(None, description="按资产名称模糊搜索"),
-    project_id: Optional[int] = Query(None, description="按项目 ID 过滤（可选）"),
+    project_id: Optional[int] = Query(None, description="按项目 ID 过滤"), # <--- 核心：通过参数过滤
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
     """
-    全局资产列表（可选按项目过滤）。
-    用于“全局视图”或跨项目检索场景。
+    获取资产列表。
+    - 如果不传 project_id：返回所有资产（全局视图）。
+    - 如果传 project_id：返回该项目下的资产（项目视图）。
     """
     stmt = select(models.Asset)
+    
+    # 动态过滤
     if project_id is not None:
         stmt = stmt.where(models.Asset.project_id == project_id)
+        
     if search:
         stmt = stmt.where(models.Asset.name.ilike(f"%{search}%"))
+        
     stmt = stmt.order_by(models.Asset.id.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     assets = result.scalars().all()
     data = [schemas.AssetRead.model_validate(asset) for asset in assets]
     return success_response(data)
 
-@router.get("/assets/search", response_model=schemas.ApiResponse)
+
+# 2. 创建资产 (POST /)
+# 以前是 POST /projects/{id}/assets，现在改为标准的 POST /assets
+@router.post("", response_model=schemas.ApiResponse, status_code=status.HTTP_201_CREATED)
+async def create_asset(
+    asset_in: schemas.AssetCreate, # <--- project_id 现在包含在这里面
+    response: Response,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user)
+):
+    """
+    创建一个新的资产。
+    """
+    # 1. 检查项目是否存在
+    project = await db.get(models.Project, asset_in.project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"项目 ID {asset_in.project_id} 不存在")
+
+    # 2. 名称标准化
+    normalized_name = asset_in.name.strip().lower().rstrip(".")
+    if not normalized_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="资产名称不能为空")
+
+    # 3. 检查去重 (同一项目下不重复)
+    existing_stmt = (
+        select(models.Asset)
+        .where(models.Asset.project_id == asset_in.project_id)
+        .where(func.lower(models.Asset.name) == normalized_name)
+    )
+    existing_result = await db.execute(existing_stmt)
+    existing_asset = existing_result.scalars().first()
+    
+    if existing_asset:
+        # 如果已存在，返回 200 OK 和现有对象
+        response.status_code = status.HTTP_200_OK
+        return success_response(
+            schemas.AssetRead.model_validate(existing_asset),
+            message="资产已存在，已复用现有记录",
+        )
+
+    # 4. 创建新记录
+    db_asset = models.Asset(
+        name=normalized_name,
+        type=asset_in.type,
+        project_id=asset_in.project_id 
+    )
+    db.add(db_asset)
+    
+    try:
+        await db.commit()
+        await db.refresh(db_asset)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建资产失败: {str(e)}")
+        
+    return success_response(schemas.AssetRead.model_validate(db_asset))
+
+
+# 3. 搜索 (GET /search) - 保持不变
+@router.get("/search", response_model=schemas.ApiResponse)
 async def search_assets_by_name(
     name: str = Query(..., description="按资产名称精确搜索"),
     limit: int = Query(10, ge=1, le=100, description="返回条目数"),
@@ -55,6 +120,7 @@ async def search_assets_by_name(
     normalized = name.strip().lower().rstrip(".")
     if not normalized:
         return success_response([])
+        
     stmt = (
         select(models.Asset, models.Project)
         .join(models.Project, models.Asset.project_id == models.Project.id)
@@ -77,97 +143,18 @@ async def search_assets_by_name(
     ]
     return success_response(data)
 
-@router.get("/assets/{asset_id}", response_model=schemas.ApiResponse)
+
+# 4. 详情 (GET /{id}) 
+@router.get("/{asset_id}", response_model=schemas.ApiResponse)
 async def get_asset_detail(
     asset_id: int,
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
-    """
-    获取单个资产详情（用于结果页加载资产信息）。
-    """
     asset = await db.get(models.Asset, asset_id)
     if not asset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"资产 ID {asset_id} 不存在")
     return success_response(schemas.AssetRead.model_validate(asset))
 
 
-@router.get("/projects/{project_id}/assets", response_model=schemas.ApiResponse)
-async def list_assets_for_project(
-    project_id: int,
-    skip: int = Query(0, ge=0, description="偏移量"),
-    limit: int = Query(20, ge=1, le=200, description="返回条目数"),
-    search: Optional[str] = Query(None, description="按资产名称模糊搜索"),
-    db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_user),
-):
-    """
-    分页列出指定项目的根资产，支持名称搜索。
-    """
-    project = await db.get(models.Project, project_id)
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"项目 ID {project_id} 不存在")
-
-    stmt = select(models.Asset).where(models.Asset.project_id == project_id)
-    if search:
-        stmt = stmt.where(models.Asset.name.ilike(f"%{search}%"))
-    stmt = stmt.order_by(models.Asset.id.desc()).offset(skip).limit(limit)
-    result = await db.execute(stmt)
-    assets = result.scalars().all()
-    data = [schemas.AssetRead.model_validate(asset) for asset in assets]
-    return success_response(data)
-
-@router.post("/projects/{project_id}/assets", response_model=schemas.ApiResponse, status_code=status.HTTP_201_CREATED)
-async def create_asset_for_project(
-    project_id: int,
-    asset_in: schemas.AssetCreate,
-    response: Response,
-    db: AsyncSession = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_active_user)
-):
-    """
-    为指定的项目创建一个新的根资产。
-    """
-    project = await db.get(models.Project, project_id)
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"项目 ID {project_id} 不存在")
-
-    normalized_name = asset_in.name.strip().lower().rstrip(".")
-    if not normalized_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="资产名称不能为空")
-
-    existing_stmt = (
-        select(models.Asset)
-        .where(models.Asset.project_id == project_id)
-        .where(func.lower(models.Asset.name) == normalized_name)
-    )
-    existing_result = await db.execute(existing_stmt)
-    existing_asset = existing_result.scalars().first()
-    if existing_asset:
-        response.status_code = status.HTTP_200_OK
-        return success_response(
-            schemas.AssetRead.model_validate(existing_asset),
-            message="资产已存在，已复用现有记录",
-        )
-
-    db_asset = models.Asset(
-        name=normalized_name,
-        type=asset_in.type,
-        project_id=project_id
-    )
-    db.add(db_asset)
-    try:
-        await db.commit()
-    except (IntegrityError, StatementError) as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"创建资产失败: {e}")
-    except DBAPIError as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"创建资产失败: {e}")
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建资产失败: {e}")
-    await db.refresh(db_asset)
-    return success_response(schemas.AssetRead.model_validate(db_asset))
-
-# ... 未来添加 GET /scans, GET /scans/{scan_id} 等 ...
+# 5. 删除 (DELETE /{id}) 

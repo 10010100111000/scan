@@ -57,3 +57,17 @@ async def create_project(
     await db.commit()
     await db.refresh(db_project)
     return success_response(schemas.ProjectRead.model_validate(db_project))
+
+# [建议新增] GET /{id}
+@router.get("/{project_id}", response_model=schemas.ApiResponse)
+async def get_project_detail(
+    project_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    """获取单个项目详情"""
+    project = await db.get(models.Project, project_id)
+    if not project:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    return success_response(schemas.ProjectRead.model_validate(project))
