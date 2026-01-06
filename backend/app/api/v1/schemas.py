@@ -92,11 +92,18 @@ class IPAddressBase(BaseModel):
 class IPAddressCreate(IPAddressBase):
     pass
 
-class IPAddressRead(IPAddressBase, OrmModel):
+class IPAddressRead(IPAddressBase):
     id: int
+    status: str
+    project_id: Optional[int]
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    tags: List[TagRead] = []
+    # [新增] 确保这些字段存在，否则前端收不到数据
+    asn_number: Optional[int] = None
+    asn_name: Optional[str] = None
+    asn_country: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 # --- Host Schemas ---
 

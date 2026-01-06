@@ -29,7 +29,13 @@
         <div v-else class="detail-grid">
           <div class="detail-item">
             <span class="text-faint">解析 IP</span>
-            <strong>{{ host.ips.join(', ') || '暂无' }}</strong>
+            <div v-if="host.ips && host.ips.length" class="ip-list">
+              <div v-for="(ip, idx) in host.ips" :key="idx" class="ip-row">
+                <strong>{{ ip.ip || ip }}</strong>
+                <span v-if="ip.asn" class="asn-tag">{{ ip.asn }}</span>
+              </div>
+            </div>
+            <strong v-else>暂无</strong>
           </div>
           <div class="detail-item">
             <span class="text-faint">项目 ID</span>
@@ -158,6 +164,26 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.ip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.asn-tag {
+  font-size: 12px;
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .detail-aside {
