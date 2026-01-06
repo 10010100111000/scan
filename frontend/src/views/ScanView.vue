@@ -45,6 +45,7 @@
       </div>
 
       <div class="mt-10 flex flex-wrap justify-center gap-4 animate-fade-in-up">
+        
         <el-popover 
           placement="bottom" 
           :width="300" 
@@ -52,7 +53,6 @@
           popper-class="glass-popover" 
           :visible="projPopoverVisible"
           @update:visible="projPopoverVisible = $event"
-          @hide="resetInlineCreate"
         >
           <template #reference>
             <div class="config-chip" @click="projPopoverVisible = !projPopoverVisible">
@@ -61,6 +61,7 @@
               <el-icon class="ml-2 text-slate-500 text-xs"><ArrowDown /></el-icon>
             </div>
           </template>
+          
           <div class="p-2">
             <div v-if="isCreatingProject" class="flex flex-col gap-2 animate-fade-in">
                <div class="text-xs text-slate-400 font-medium px-1">新建项目</div>
@@ -75,6 +76,7 @@
                  <el-button size="small" type="primary" :loading="createLoading" @click="handleInlineCreate">创建</el-button>
                </div>
             </div>
+
             <div v-else class="flex flex-col h-full">
               <div class="text-xs text-slate-400 mb-2 px-1">切换项目</div>
               <div class="max-h-56 overflow-y-auto custom-scrollbar space-y-1">
@@ -89,7 +91,7 @@
                 </div>
               </div>
               <div class="border-t border-slate-700 mt-2 pt-2">
-                 <el-button text bg size="small" class="w-full justify-start" @click="switchToCreateMode">
+                 <el-button text bg size="small" class="w-full justify-start" @click.stop="switchToCreateMode">
                     <el-icon class="mr-1"><Plus /></el-icon> 新建项目
                  </el-button>
               </div>
@@ -97,12 +99,17 @@
           </div>
         </el-popover>
 
-        <el-popover placement="bottom" :width="320" trigger="click" popper-class="glass-popover">
+        <el-popover 
+          placement="right" 
+          :width="320" 
+          trigger="click" 
+          popper-class="glass-popover"
+        >
           <template #reference>
             <div class="config-chip">
               <el-icon class="text-yellow-400"><Lightning /></el-icon>
               <span>{{ currentStrategyLabel }}</span>
-              <el-icon class="ml-2 text-slate-500 text-xs"><ArrowDown /></el-icon>
+              <el-icon class="ml-2 text-slate-500 text-xs"><ArrowRight /></el-icon>
             </div>
           </template>
           <div class="p-2">
@@ -120,6 +127,7 @@
             </div>
           </div>
         </el-popover>
+
       </div>
     </div>
 
@@ -139,8 +147,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
-import { Search, Folder, Lightning, ArrowDown, Check, Plus } from '@element-plus/icons-vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue' // [修改] 引入 watch
+import { Search, Folder, Lightning, ArrowDown, ArrowRight, Check, Plus } from '@element-plus/icons-vue' // [修改] 引入 ArrowRight
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -179,6 +187,17 @@ const currentProjectName = computed(() => {
 
 const currentStrategyLabel = computed(() => {
   return strategies.value.find(s => s.value === selectedStrategy.value)?.label || 'Strategy'
+})
+
+// [新增] 监听 Popover 可见性，只有在完全关闭后才重置状态
+// 这解决了“显示一下就消失/闪退”的 Bug
+watch(projPopoverVisible, (val) => {
+  if (!val) {
+    // 延迟一点点重置，体验更自然
+    setTimeout(() => {
+      resetInlineCreate()
+    }, 200)
+  }
 })
 
 onMounted(async () => {
