@@ -51,11 +51,10 @@
           :width="300" 
           trigger="click" 
           popper-class="glass-popover" 
-          :visible="projPopoverVisible"
-          @update:visible="projPopoverVisible = $event"
+          v-model:visible="projPopoverVisible"
         >
           <template #reference>
-            <div class="config-chip" @click="projPopoverVisible = !projPopoverVisible">
+            <div class="config-chip">
               <el-icon class="text-blue-400"><Folder /></el-icon>
               <span class="truncate max-w-[120px]">{{ currentProjectName }}</span>
               <el-icon class="ml-2 text-slate-500 text-xs"><ArrowDown /></el-icon>
@@ -91,7 +90,7 @@
                 </div>
               </div>
               <div class="border-t border-slate-700 mt-2 pt-2">
-                 <el-button text bg size="small" class="w-full justify-start" @click="switchToCreateMode">
+                 <el-button text bg size="small" class="w-full justify-start" @click.stop="switchToCreateMode">
                     <el-icon class="mr-1"><Plus /></el-icon> 新建项目
                  </el-button>
               </div>
@@ -189,7 +188,7 @@ const currentStrategyLabel = computed(() => {
   return strategies.value.find(s => s.value === selectedStrategy.value)?.label || 'Strategy'
 })
 
-// 监听 Popover 状态，关闭后才重置 UI，体验更佳
+// 监听 Popover 状态，关闭后才重置 UI (回到列表模式)，体验更佳
 watch(projPopoverVisible, (val) => {
   if (!val) {
     setTimeout(() => {
@@ -238,6 +237,7 @@ const handleInlineCreate = async () => {
     selectedProjectId.value = newProject.id
     ElMessage.success('项目已创建')
     resetInlineCreate()
+    // 创建成功后，通过修改 v-model 的值来关闭 Popover
     projPopoverVisible.value = false
   } catch (e: any) {
     ElMessage.error(e.message || '创建项目失败')
@@ -253,6 +253,9 @@ const resetInlineCreate = () => {
 
 const selectProject = (id: number) => {
   selectedProjectId.value = id
+  // 选择后自动关闭
+  // 由于 trigger="click" 不会自动识别“点击列表项”为关闭动作，
+  // 我们这里手动关闭它。这利用了 v-model 的特性，和 reference 上的 click 不冲突。
   projPopoverVisible.value = false
 }
 
