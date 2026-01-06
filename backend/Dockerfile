@@ -1,7 +1,10 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci
+# [修改这里] 把 npm ci 改为 npm install
+# npm ci (Strict) -> 必须有同步的 lock 文件，否则报错
+# npm install (Flexible) -> 会根据 package.json 自动计算并安装，适合开发调试
+RUN npm install
 COPY frontend .
 RUN npm run build
 
