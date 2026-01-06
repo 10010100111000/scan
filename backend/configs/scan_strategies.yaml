@@ -1,21 +1,42 @@
 # backend/configs/scan_strategies.yaml
-# 扫描策略定义（面向用户的“流程/策略”）
 
-- strategy_name: "资产发现 + Web 探测"
-  description: "子域名发现、解析验证，并识别 Web 服务与指纹。"
+# 1. [域名] 快速侦察 (被动+轻量主动)
+# 类似于 ProjectDiscovery 的轻量级扫描
+- strategy_name: "1. 域名快速侦察 (Web)"
+  description: "子域名发现 -> Web 探测 (获取 Title/IP/ASN)。速度最快。"
   steps:
     - "Subfinder (默认)"
-    - "dnsx (解析验证)"
-    - "httpx (Web探活)"
+    - "httpx (Web资产详情)"
 
-- strategy_name: "端口扫描 + Web 探测"
-  description: "端口扫描后进行 Web 服务探测与指纹识别。"
+# 2. [域名] 全面侦察 (主动端口)
+# 增加了端口扫描，发现非标准端口的 Web
+- strategy_name: "2. 域名深度侦察 (端口+Web)"
+  description: "子域名发现 -> 端口扫描 -> Web 探测。"
   steps:
-    - "naabu (快速端口扫描)"
-    - "httpx (Web探活)"
+    - "Subfinder (默认)"
+    - "Naabu (子域名端口扫描)"
+    - "httpx (Web资产详情)"
 
-- strategy_name: "高危漏洞检测（快速）"
-  description: "针对已发现 Web 服务快速进行高危漏洞扫描。"
+# 3. [域名] 漏洞评估 (全流程)
+# 包含漏洞扫描
+- strategy_name: "3. 域名漏洞扫描 (Web+Vuln)"
+  description: "发现 -> Web 探测 -> 高危漏洞检测。"
   steps:
-    - "httpx (Web探活)"
+    - "Subfinder (默认)"
+    - "httpx (Web资产详情)"
     - "Nuclei (高危漏洞)"
+
+# 4. [IP/网段] 基础设施扫描
+# 针对输入是 "1.2.3.4" 或 "192.168.1.0/24" 的情况
+- strategy_name: "4. IP/CIDR 基础设施扫描"
+  description: "针对 IP/CIDR 进行端口发现和 Web 探测 (跳过子域名发现)。"
+  steps:
+    - "Naabu (IP/CIDR全端口)"
+    - "httpx (IP Web探测)"
+
+# 5. [工具] 纯 DNS 解析
+- strategy_name: "5. 仅域名解析 (dnsx)"
+  description: "仅执行 Subfinder 和 DNS 解析，不进行发包探测。"
+  steps:
+    - "Subfinder (默认)"
+    - "dnsx (域名解析)"

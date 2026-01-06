@@ -1,14 +1,15 @@
 # backend/app/core/orchestrator.py
 """
-扫描任务的编排器 (完整版)。
-负责获取任务、执行命令、解析结果并存入数据库。
-支持 Web 安全专注流程：Subfinder (被动) -> Nmap (主动) -> httpx (主动) -> Nuclei (主动)
+扫描任务的编排器 (重构版)。
+职责：
+1. 任务调度与状态管理
+2. 进程执行 (Stdin/Stdout)
+3. 调度解析器与处理器 (不包含具体入库业务逻辑)
 """
 import asyncio
+import shlex
 from pathlib import Path
-from urllib.parse import urlparse
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.data.session import AsyncSessionLocal
@@ -18,8 +19,10 @@ from app.core.config_loader import get_scan_config_by_name
 # 导入解析器
 from app.parsers.line_parser import LineParser
 from app.parsers.json_lines_parser import JsonLinesParser
-# 注意: 你需要确保 backend/app/parsers/nmap_parser.py 文件存在
 from app.parsers.nmap_parser import NmapXmlParser 
+
+# 导入处理器工厂
+from app.processors import get_processor_class
 
 # --- 解析器注册表 ---
 PARSERS = {
@@ -35,11 +38,7 @@ async def run_scan_task_logic(task_id: int):
         try:
             # 1. 获取任务信息
             task = await db.get(models.ScanTask, task_id)
-            if not task:
-                print(f"[任务 {task_id}] 未找到")
-                return
-            if task.status != 'pending':
-                print(f"[任务 {task_id}] 状态不为 pending，跳过")
+            if not task or task.status != 'pending':
                 return
 
             asset = await db.get(models.Asset, task.asset_id)
@@ -49,7 +48,7 @@ async def run_scan_task_logic(task_id: int):
                 await db.commit()
                 return
 
-            # 2. 更新状态为 running
+            # 2. 更新状态
             task.status = "running"
             await db.commit()
 
@@ -62,285 +61,95 @@ async def run_scan_task_logic(task_id: int):
             parser_type = scan_config.get("output_parser_type")
             data_mapping = scan_config.get("data_mapping", {})
             agent_type = scan_config.get("agent_type")
-            # 记录任务阶段，方便前端展示“策略步骤”
             task.stage = agent_type
             await db.commit()
 
-            # 4. 构造并执行命令
-            #    对于 Web 扫描，目标通常是域名 (example.com)
-            #    对于 端口 扫描，目标可能是域名或网段 (1.1.1.0/24)
-            target = asset.name 
-            command = command_template.format(target=target)
-            
+            # 4. 准备输入数据 (Stdin 直传逻辑)
+            target_source = scan_config.get("target_source", "root")
+            input_data = None
+            target_arg = ""
+
+            if target_source == "subdomains":
+                stmt = select(models.Host.hostname).where(models.Host.root_asset_id == asset.id)
+                result = await db.execute(stmt)
+                subdomains = [s for s in result.scalars().all() if s]
+                
+                if not subdomains:
+                    task.status = "completed"
+                    task.log = "无子域名数据，跳过执行"
+                    await db.commit()
+                    return
+
+                input_data = "\n".join(subdomains).encode('utf-8')
+                target_arg = "" # Stdin 模式无需命令行参数
+            else:
+                target_arg = shlex.quote(asset.name)
+                input_data = None
+
+            # 5. 执行命令
+            command = command_template.format(target=target_arg)
             print(f"[任务 {task_id}] 执行命令: {command}")
+            
             process = await asyncio.create_subprocess_shell(
                 command,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            stdout_bytes, stderr_bytes = await process.communicate()
+            
+            stdout_bytes, stderr_bytes = await process.communicate(input=input_data)
             stdout = stdout_bytes.decode('utf-8', errors='ignore')
             stderr = stderr_bytes.decode('utf-8', errors='ignore')
 
-            # 保存原始输出作为产物，便于下载与溯源
+            # 保存产物
             artifacts_dir = Path("storage") / "artifacts"
             artifacts_dir.mkdir(parents=True, exist_ok=True)
             artifact_path = artifacts_dir / f"task_{task.id}.log"
-            artifact_path.write_text(f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}", encoding="utf-8")
+            artifact_path.write_text(f"CMD: {command}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}", encoding="utf-8")
             task.artifact_path = str(artifact_path)
-            await db.commit()
             
-            # 简单错误检查 (有些工具如 subfinder即使成功 stderr 也有内容，需谨慎)
-            if process.returncode != 0 and not stdout:
-                 raise RuntimeError(f"命令执行失败: {stderr}")
-
-            # 5. 解析与入库
+            # 6. 解析与处理 (解耦核心)
             parser_class = PARSERS.get(parser_type)
             if not parser_class:
                 raise ValueError(f"未知解析器: {parser_type}")
+            
+            # 获取对应的业务处理器
+            processor_class = get_processor_class(agent_type)
+            processor = processor_class(db, task) if processor_class else None
+            
+            if not processor:
+                print(f"[警告] 未找到类型为 {agent_type} 的处理器，仅保存原始日志")
             
             parser = parser_class()
             results_count = 0
             processed_count = 0
             
-            # --- 核心数据处理分支 ---
+            # 统一处理循环
+            async for res in parser.parse(stdout, data_mapping):
+                processed_count += 1
+                
+                # A. 始终保存原始结果 (RawScanResult)
+                raw = models.RawScanResult(scan_task_id=task.id, data=res)
+                db.add(raw)
+                
+                # B. 调用业务处理器入库
+                if processor:
+                    added = await processor.process(res)
+                    results_count += added
             
-            # A. 子域名发现 (Subfinder) - [被动扫描阶段]
-            #    Subfinder 默认查询被动源，不直接发包给目标，非常适合前期侦察
-            if agent_type == "subdomain":
-                async for res in parser.parse(stdout, data_mapping):
-                    processed_count += 1
-                    # Subfinder 常见字段: host / ip / ips / type
-                    hostname_raw = res.get("hostname") or res.get("host") or res.get("target")
-                    hostname = hostname_raw.lower().rstrip(".") if hostname_raw else None
-                    record_type = res.get("record_type") or res.get("type") or "A"
-                    # 支持单个 ip 或 ips 列表
-                    ip_values_raw = res.get("ips") or []
-                    ip_single = res.get("ip")
-                    ip_values = set()
-                    # 支持字符串或列表
-                    if ip_single:
-                        if isinstance(ip_single, list):
-                            ip_values.update([ip for ip in ip_single if ip])
-                        else:
-                            ip_values.add(ip_single)
-                    if isinstance(ip_values_raw, list):
-                        ip_values.update([ip for ip in ip_values_raw if ip])
-
-                    if not hostname:
-                        continue
-
-                    # --- Host 去重 ---
-                    existing = await db.execute(select(models.Host).where(models.Host.hostname == hostname))
-                    host_obj = existing.scalars().first()
-                    host_created = False
-                    if not host_obj:
-                        host_obj = models.Host(
-                            hostname=hostname,
-                            project_id=asset.project_id,
-                            root_asset_id=asset.id,
-                            status="discovered"
-                        )
-                        db.add(host_obj)
-                        await db.flush()
-                        host_created = True
-
-                    # --- 原始结果存档 ---
-                    raw = models.RawScanResult(
-                        scan_task_id=task.id,
-                        data=res
-                    )
-                    db.add(raw)
-
-                    # --- DNS/IP 关联 (如果解析到 IP) ---
-                    dns_new = 0
-                    ip_new = 0
-                    for ip_value in ip_values:
-                        existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip_value))
-                        ip_obj = existing_ip.scalars().first()
-                        if not ip_obj:
-                            ip_obj = models.IPAddress(
-                                ip_address=ip_value,
-                                project_id=asset.project_id,
-                                root_asset_id=asset.id,
-                                status="discovered"
-                            )
-                            db.add(ip_obj)
-                            await db.flush()
-                            ip_new += 1
-
-                        # 建立 DNS 记录关联（多对多）
-                        dns_exists = await db.execute(
-                            select(models.DNSRecord).where(
-                                models.DNSRecord.host_id == host_obj.id,
-                                models.DNSRecord.ip_address_id == ip_obj.id,
-                                models.DNSRecord.record_type == record_type
-                            )
-                        )
-                        if not dns_exists.scalars().first():
-                            dns = models.DNSRecord(
-                                host_id=host_obj.id,
-                                ip_address_id=ip_obj.id,
-                                record_type=record_type
-                            )
-                            db.add(dns)
-                            dns_new += 1
-
-                    # 统计真正新增的实体数量
-                    results_count += (1 if host_created else 0) + ip_new + dns_new
-
-            # B. 端口扫描 (Nmap) - [主动扫描阶段]
-            #    Nmap 会直接向目标 IP 发送 TCP SYN 包，属于主动交互
-            elif agent_type == "portscan":
-                async for res in parser.parse(stdout, data_mapping):
-                    processed_count += 1
-                    ip = res.get("ip")
-                    port_num = res.get("port")
-                    service = res.get("service")
-                    
-                    if ip and port_num:
-                        # 1. 确保 IP 存在 (如果不存在则创建)
-                        existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip))
-                        db_ip = existing_ip.scalars().first()
-
-                        if not db_ip:
-                            db_ip = models.IPAddress(
-                                ip_address=ip,
-                                project_id=asset.project_id,
-                                root_asset_id=asset.id,
-                                status="discovered"
-                            )
-                            db.add(db_ip)
-                            await db.flush() # 立即获取 ID
-                        
-                        # 2. 存入端口 (去重)
-                        existing_port = await db.execute(
-                            select(models.Port).where(
-                                models.Port.ip_address_id == db_ip.id,
-                                models.Port.port_number == port_num
-                            )
-                        )
-                        if not existing_port.scalars().first():
-                            new_port = models.Port(
-                                ip_address_id=db_ip.id,
-                                port_number=port_num,
-                                service_name=service
-                            )
-                            db.add(new_port)
-                            results_count += 1
-
-            # C. Web 服务探测 (httpx) - [主动扫描阶段]
-            #    httpx 发送 HTTP 请求来获取 Title 和 Tech 指纹，是 Web 安全的核心步骤
-            elif agent_type == "http":
-                async for res in parser.parse(stdout, data_mapping):
-                    processed_count += 1
-                    url = res.get("url")
-                    ip = res.get("ip")
-                    port_val = res.get("port")
-                    
-                    if url:
-                        # 兜底逻辑：如果 httpx 没返回 IP/Port，尝试从 URL 解析
-                        # e.g., http://1.2.3.4:8080/
-                        if not ip or not port_val:
-                            parsed = urlparse(url)
-                            # 如果 netloc 是 IP，直接用；如果是域名，这里没法直接解析，需要依赖 host 字段
-                            # 为了简化，假设 httpx 配置了 -ip 选项
-                            if not port_val:
-                                port_val = parsed.port if parsed.port else (443 if parsed.scheme == 'https' else 80)
-
-                        # 1. 查找或创建 IP (如果能拿到 IP)
-                        db_ip_id = None
-                        if ip:
-                            existing_ip = await db.execute(select(models.IPAddress).where(models.IPAddress.ip_address == ip))
-                            db_ip = existing_ip.scalars().first()
-                            if not db_ip:
-                                db_ip = models.IPAddress(
-                                    ip_address=ip,
-                                    project_id=asset.project_id,
-                                    root_asset_id=asset.id,
-                                    status="discovered"
-                                )
-                                db.add(db_ip)
-                                await db.flush()
-                            db_ip_id = db_ip.id
-
-                        # 2. 查找或创建 Port (如果有关联 IP)
-                        db_port_id = None
-                        if db_ip_id and port_val:
-                            try:
-                                port_num = int(port_val)
-                            except:
-                                port_num = 80
-
-                            existing_port = await db.execute(
-                                select(models.Port).where(
-                                    models.Port.ip_address_id == db_ip_id, 
-                                    models.Port.port_number == port_num
-                                )
-                            )
-                            db_port = existing_port.scalars().first()
-                            if not db_port:
-                                db_port = models.Port(ip_address_id=db_ip_id, port_number=port_num, service_name="http")
-                                db.add(db_port)
-                                await db.flush()
-                            db_port_id = db_port.id
-
-                        # 3. 创建 HTTPService
-                        existing_svc = await db.execute(select(models.HTTPService).where(models.HTTPService.url == url))
-                        if not existing_svc.scalars().first():
-                            # 如果找不到 Port，暂时允许 port_id 为空 (需要在 model 允许 nullable)
-                            # 或者，我们这里强行要求 httpx 必须关联到一个 Port，否则不入库
-                            if db_port_id: 
-                                new_svc = models.HTTPService(
-                                    port_id=db_port_id,
-                                    url=url,
-                                    title=res.get("title"),
-                                    status_code=res.get("status_code"),
-                                    tech=res.get("tech"),
-                                    response_headers=res.get("web_server"),
-                                    favicon_hash=res.get("favicon_hash"),
-                                    ssl_info=res.get("ssl_info")
-                                )
-                                db.add(new_svc)
-                                results_count += 1
-
-            # D. 漏洞扫描 (Nuclei) - [主动扫描阶段]
-            #    Nuclei 发送 Payload 验证漏洞，是攻击性最强的步骤
-            elif agent_type == "vulnerability":
-                async for res in parser.parse(stdout, data_mapping):
-                    processed_count += 1
-                    vuln_name = res.get("vulnerability_name")
-                    severity = res.get("severity")
-                    matched_url = res.get("url")
-                    
-                    if vuln_name:
-                        # 存入 Vulnerability 表
-                        # 这里未来可以做更细的关联：通过 matched_url 反查 HTTPService ID
-                        new_vuln = models.Vulnerability(
-                            vulnerability_name=vuln_name,
-                            severity=severity or "medium",
-                            matched_at=matched_url,
-                            template_id=res.get("template_id"),
-                            details=res 
-                        )
-                        db.add(new_vuln)
-                        results_count += 1
-
-            # --- 结束分支 ---
-
+            # 7. 完成
             if results_count > 0:
                 await db.commit()
-            
+
             task.status = "completed"
             task.completed_at = datetime.now(timezone.utc)
             task.log = f"扫描完成，处理 {processed_count} 条，新增 {results_count} 条数据。"
             await db.commit()
-            print(f"[任务 {task_id}] 完成。新增数据: {results_count}")
+            print(f"[任务 {task_id}] 完成。新增: {results_count}")
 
         except Exception as e:
             print(f"[任务 {task_id}] 异常: {e}")
             await db.rollback()
-            # 重新获取 task 以避免 Session 状态问题
             async with AsyncSessionLocal() as error_db:
                 task_fail = await error_db.get(models.ScanTask, task_id)
                 if task_fail:

@@ -1,57 +1,81 @@
 # backend/configs/scanners.yaml
-# 扫描器规则配置
-# 变量说明: {target} : 目标资产 (域名或IP)
 
 # --- 1. 子域名发现 (Subfinder) ---
 - config_name: "Subfinder (默认)"
   agent_type: "subdomain"
-  # -silent: 仅输出结果
-  # -jsonl: JSON Lines 格式输出
   command_template: "subfinder -d {target} -silent -oJ"
   output_parser_type: "json_lines"
   data_mapping:
-    hostname: "host"       # JSON中的 host 字段映射到数据库的 hostname
-    source: "source"       # JSON中的 source 字段
+    hostname: "host"
+    source: "source"
 
-# --- 2. 端口扫描 (Nmap) ---
-- config_name: "Nmap (快速扫描)"
+# --- 2. 端口扫描 (Naabu - 读子域名) ---
+# 场景：已知域名，想扫端口
+- config_name: "Naabu (子域名端口扫描)"
   agent_type: "portscan"
-  # -sS: SYN扫描 (需要root权限，docker中通常有)
-  # -T4: 快速时序
-  # --top-ports 1000: 扫描最常用的1000个端口
-  # -oX -: 输出XML到标准输出 (stdout)
-  command_template: "nmap -sS -T4 --top-ports 1000 -oX - {target}"
-  output_parser_type: "nmap_xml"
+  target_source: "subdomains"  # 读取数据库中的子域名
+  # -top-ports 1000: 扫描常用端口
+  command_template: "naabu -top-ports 1000 -json -silent"
+  output_parser_type: "json_lines"
   data_mapping:
-    # NmapXmlParser 已经固定了输出结构，这里留空即可
-    dummy: "self"
+    ip: "ip"
+    port: "port"
+    host: "host"
 
-# --- 3. Web 服务探测 (httpx) ---
-- config_name: "httpx (Web探活)"
+# --- 3. 端口扫描 (Naabu - 读根资产) ---
+# 场景：输入是 IP 或 CIDR (如 192.168.1.0/24)
+- config_name: "Naabu (IP/CIDR全端口)"
+  agent_type: "portscan"
+  target_source: "root"        # 直接读取 Asset Name (IP/CIDR)
+  command_template: "naabu -p - -json -silent {target}"
+  output_parser_type: "json_lines"
+  data_mapping:
+    ip: "ip"
+    port: "port"
+    host: "host"
+
+# --- 4. Web 服务探测 (httpx 增强版) ---
+- config_name: "httpx (Web资产详情)"
   agent_type: "http"
-  # -sc: 状态码, -title: 标题, -ip: 显示IP, -json: JSON输出
-  # echo {target} | ... 是因为 httpx 接收 stdin 输入
-  # 增强：favicon 哈希、TLS 抓取、技术指纹
-  command_template: "echo {target} | httpx -sc -title -ip -json -silent -favicon -tls-grab -tech-detect"
+  target_source: "subdomains"  # 默认读取子域名
+  # [修改] 增加 -asn (获取ASN/ISP信息) 和 -cdn (检测CDN)
+  command_template: "httpx -sc -title -ip -asn -cdn -json -silent -favicon -tls-grab -tech-detect"
   output_parser_type: "json_lines"
   data_mapping:
     url: "url"
     title: "title"
     status_code: "status_code"
-    tech: "tech"             # 技术栈指纹
-    web_server: "webserver"  # Server 头
-    # *** 关键字段 ***
-    ip: "host"               # httpx json 中的 host 字段通常是解析后的 IP
-    port: "port"             # httpx json 中的 port 字段
-    favicon_hash: "favicon_hash"  # MurmurHash3
-    ssl_info: "tls"               # TLS 抓取信息
+    tech: "tech"
+    web_server: "webserver"
+    ip: "host"            # httpx 的 host 字段是 IP
+    port: "port"
+    favicon_hash: "favicon_hash"
+    ssl_info: "tls"
+    # [新增] ASN/Geo 映射 (需要在 orchestrator 解析)
+    asn_id: "asn.as-number"
+    asn_org: "asn.as-name"
+    isp: "asn.as-name"
+    country: "asn.country-code"
 
-# --- 4. 漏洞扫描 (Nuclei) ---
+# --- 5. Web 服务探测 (httpx - 针对 IP) ---
+# 场景：直接对 IP/CIDR 进行 Web 探测
+- config_name: "httpx (IP Web探测)"
+  agent_type: "http"
+  target_source: "root"   # 直接读取 Asset (IP)
+  command_template: "echo {target} | httpx -sc -title -ip -asn -json -silent"
+  output_parser_type: "json_lines"
+  data_mapping:
+    url: "url"
+    title: "title"
+    status_code: "status_code"
+    ip: "host"
+    port: "port"
+
+# --- 6. 漏洞扫描 (Nuclei) ---
 - config_name: "Nuclei (高危漏洞)"
   agent_type: "vulnerability"
-  # -s critical,high: 只扫高危严重漏洞
-  # -jsonl: 输出 JSON Lines
-  command_template: "nuclei -u {target} -severity critical,high -silent -jsonl"
+  target_source: "subdomains"
+  command_template: "nuclei -severity critical,high -silent -jsonl"
   output_parser_type: "json_lines"
   data_mapping:
     vulnerability_name: "info.name"
@@ -60,36 +84,12 @@
     template_id: "template-id"
     url: "matched-at"
 
-# --- 5. 端口扫描 (naabu 快速) ---
-- config_name: "naabu (快速端口扫描)"
-  agent_type: "portscan"
-  # 快速端口探测，输出 JSONL
-  command_template: "echo {target} | naabu -json -silent"
-  output_parser_type: "json_lines"
-  data_mapping:
-    ip: "ip"
-    port: "port"
-    service: "service"
-    host: "host"
-
-# --- 5. DNS 解析 (dnsx) ---
-- config_name: "dnsx (解析验证)"
+# --- 7. DNS 解析 (dnsx - 保留备用) ---
+- config_name: "dnsx (域名解析)"
   agent_type: "subdomain"
-  # 对域名执行解析，补充 A/CNAME -> IP 记录
-  command_template: "echo {target} | dnsx -resp -json -silent"
+  target_source: "subdomains" # 读库
+  command_template: "dnsx -resp -json -silent"
   output_parser_type: "json_lines"
   data_mapping:
-    hostname: "input"     # 输入的域名
-    ip: "a"               # A 记录列表
-    record_type: "type"   # 记录类型
-
-# --- 6. 反向 DNS (dnsx ptr) ---
-- config_name: "dnsx (PTR 反查)"
-  agent_type: "subdomain"
-  # 对 IP 进行 PTR 查询，发现指向的域名
-  command_template: "echo {target} | dnsx -ptr -json -silent"
-  output_parser_type: "json_lines"
-  data_mapping:
-    hostname: "ptr"       # PTR 结果
-    ip: "host"            # 原始 IP
-    record_type: "type"   # PTR
+    hostname: "host"
+    ip: "a"
