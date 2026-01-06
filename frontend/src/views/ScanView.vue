@@ -151,6 +151,9 @@ import { Search, Folder, Lightning, ArrowDown, ArrowRight, Check, Plus } from '@
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
+// [核心修改] 1. 引入 useScanOverlay 钩子
+import { useScanOverlay } from '@/composables/useScanOverlay'
+
 import { 
   fetchProjects,
   searchAssetsByName,     
@@ -162,6 +165,9 @@ import {
 } from '@/api/scan'
 
 const router = useRouter()
+// [核心修改] 2. 获取 close 方法
+const { close: closeOverlay } = useScanOverlay()
+
 const loading = ref(false)
 const target = ref('')
 
@@ -188,7 +194,6 @@ const currentStrategyLabel = computed(() => {
   return strategies.value.find(s => s.value === selectedStrategy.value)?.label || 'Strategy'
 })
 
-// 监听 Popover 状态，关闭后才重置 UI (回到列表模式)，体验更佳
 watch(projPopoverVisible, (val) => {
   if (!val) {
     setTimeout(() => {
@@ -223,7 +228,6 @@ onMounted(async () => {
 
 const switchToCreateMode = () => {
   isCreatingProject.value = true
-  // 由于使用了 v-show，元素始终在 DOM 中，直接聚焦即可
   nextTick(() => { newProjectInputRef.value?.focus() })
 }
 
@@ -237,7 +241,6 @@ const handleInlineCreate = async () => {
     selectedProjectId.value = newProject.id
     ElMessage.success('项目已创建')
     resetInlineCreate()
-    // 创建成功后，通过修改 v-model 的值来关闭 Popover
     projPopoverVisible.value = false
   } catch (e: any) {
     ElMessage.error(e.message || '创建项目失败')
@@ -253,32 +256,59 @@ const resetInlineCreate = () => {
 
 const selectProject = (id: number) => {
   selectedProjectId.value = id
-  // 选择后自动关闭
-  // 由于 trigger="click" 不会自动识别“点击列表项”为关闭动作，
-  // 我们这里手动关闭它。这利用了 v-model 的特性，和 reference 上的 click 不冲突。
   projPopoverVisible.value = false
 }
 
 const handleAction = async () => {
   const input = target.value.trim()
   if (!input) return ElMessage.warning('请输入目标')
-  if (!selectedProjectId.value) return ElMessage.warning('请选择一个项目')
 
   loading.value = true
+
   try {
+    // 智能初始化 Default
+    if (!selectedProjectId.value) {
+      try {
+        let defaultProj = projects.value.find(p => p.name === 'Default')
+        if (!defaultProj) {
+           defaultProj = await createProject({ name: 'Default' })
+           projects.value.unshift(defaultProj)
+           ElMessage.success('已自动初始化 Default 项目')
+        }
+        selectedProjectId.value = defaultProj.id
+      } catch (e) {
+        loading.value = false
+        return ElMessage.warning('请先创建一个项目')
+      }
+    }
+
+    if (!selectedStrategy.value) {
+      loading.value = false
+      return ElMessage.warning('请选择扫描策略')
+    }
+
     const existRes = await searchAssetsByName(input) 
     const existAssets = Array.isArray(existRes) ? existRes : (existRes['items'] || existRes['data'] || [])
     const exactMatch = existAssets.find((a: any) => a.name === input)
 
     if (exactMatch) {
-      ElMessage.success(`资产已存在，正在跳转...`)
+      ElMessage.success(`资产已存在，跳转查看...`)
+      
+      // [核心修改] 3. 成功后，先关闭遮罩层
+      closeOverlay()
+      
       router.push(`/results/${exactMatch.id}`)
     } else {
       const isCidr = input.includes('/') || /^\d+\.\d+\.\d+\.\d+$/.test(input)
       const type = isCidr ? 'cidr' : 'domain'
-      const newAsset = await createAsset(selectedProjectId.value, { name: input, type: type })
+      const newAsset = await createAsset(selectedProjectId.value!, { name: input, type: type })
       await triggerScan({ asset_id: newAsset.id, strategy_name: selectedStrategy.value })
+      
       ElMessage.success(`扫描已启动`)
+      
+      // [核心修改] 3. 成功后，先关闭遮罩层
+      closeOverlay()
+      
       router.push('/tasks')
     }
   } catch (e: any) {
