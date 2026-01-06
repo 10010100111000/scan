@@ -63,7 +63,7 @@
           </template>
           
           <div class="p-2">
-            <div v-if="isCreatingProject" class="flex flex-col gap-2 animate-fade-in">
+            <div v-show="isCreatingProject" class="flex flex-col gap-2 animate-fade-in">
                <div class="text-xs text-slate-400 font-medium px-1">新建项目</div>
                <el-input 
                  ref="newProjectInputRef"
@@ -77,7 +77,7 @@
                </div>
             </div>
 
-            <div v-else class="flex flex-col h-full">
+            <div v-show="!isCreatingProject" class="flex flex-col h-full">
               <div class="text-xs text-slate-400 mb-2 px-1">切换项目</div>
               <div class="max-h-56 overflow-y-auto custom-scrollbar space-y-1">
                 <div 
@@ -91,7 +91,7 @@
                 </div>
               </div>
               <div class="border-t border-slate-700 mt-2 pt-2">
-                 <el-button text bg size="small" class="w-full justify-start" @click.stop="switchToCreateMode">
+                 <el-button text bg size="small" class="w-full justify-start" @click="switchToCreateMode">
                     <el-icon class="mr-1"><Plus /></el-icon> 新建项目
                  </el-button>
               </div>
@@ -147,8 +147,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue' // [修改] 引入 watch
-import { Search, Folder, Lightning, ArrowDown, ArrowRight, Check, Plus } from '@element-plus/icons-vue' // [修改] 引入 ArrowRight
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { Search, Folder, Lightning, ArrowDown, ArrowRight, Check, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -189,11 +189,9 @@ const currentStrategyLabel = computed(() => {
   return strategies.value.find(s => s.value === selectedStrategy.value)?.label || 'Strategy'
 })
 
-// [新增] 监听 Popover 可见性，只有在完全关闭后才重置状态
-// 这解决了“显示一下就消失/闪退”的 Bug
+// 监听 Popover 状态，关闭后才重置 UI，体验更佳
 watch(projPopoverVisible, (val) => {
   if (!val) {
-    // 延迟一点点重置，体验更自然
     setTimeout(() => {
       resetInlineCreate()
     }, 200)
@@ -226,6 +224,7 @@ onMounted(async () => {
 
 const switchToCreateMode = () => {
   isCreatingProject.value = true
+  // 由于使用了 v-show，元素始终在 DOM 中，直接聚焦即可
   nextTick(() => { newProjectInputRef.value?.focus() })
 }
 
