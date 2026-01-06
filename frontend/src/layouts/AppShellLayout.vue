@@ -14,6 +14,7 @@
       <transition name="scan-overlay">
         <div v-if="scanOverlayOpen" class="scan-overlay" @click.self="closeScan">
           <div class="scan-overlay__backdrop" @click="closeScan"></div>
+          
           <div class="scan-overlay__panel" @click.stop>
             <button class="scan-overlay__close" type="button" @click="closeScan" aria-label="Close scan overlay">
               <span aria-hidden="true">&times;</span>
@@ -38,7 +39,8 @@ import { provideScanOverlay } from '@/composables/useScanOverlay'
 const route = useRoute()
 const railCollapsed = ref(false)
 const scanOverlayOpen = ref(false)
-// 移除 scanOverlayReady 相关逻辑，不再需要延迟显示
+
+// [已删除] scanOverlayReady 及其 watcher/methods 统统删掉
 
 const showRightRail = computed(() => route.meta.showRightRail === true)
 const gridStyle = computed(() => ({
@@ -125,7 +127,6 @@ watch(scanOverlayOpen, (isOpen) => {
   inset: 0;
   z-index: 2000;
   display: grid;
-  /* 确保整个 Overlay 不会滚动 */
   overflow: hidden; 
 }
 
@@ -143,9 +144,11 @@ watch(scanOverlayOpen, (isOpen) => {
   width: 100%;
   background: #0b1020;
   box-shadow: 0 -24px 80px rgba(0, 0, 0, 0.4);
-  /* 关键修改：禁止 Panel 出现滚动条，交由 ScanView 内部处理布局 */
+  /* [关键修改] 禁止 Panel 自身滚动，布局交由子组件控制 */
   overflow: hidden; 
 }
+
+/* [已删除] .scan-overlay__skeleton 相关样式 */
 
 .scan-overlay__close {
   position: fixed;
