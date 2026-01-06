@@ -39,7 +39,7 @@
   agent_type: "http"
   target_source: "subdomains"  # 默认读取子域名
   # [修改] 增加 -asn (获取ASN/ISP信息) 和 -cdn (检测CDN)
-  command_template: "httpx -sc -title -ip -asn -cdn -json -silent -favicon -tls-grab -tech-detect"
+  command_template: "httpx-pd -sc -title -ip -asn -cdn -json -silent -favicon -tls-grab -tech-detect"
   output_parser_type: "json_lines"
   data_mapping:
     url: "url"

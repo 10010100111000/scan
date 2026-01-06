@@ -52,7 +52,7 @@ RUN set -eux; \
     \
     wget https://gh-proxy.org/https://github.com/projectdiscovery/httpx/releases/download/v1.6.0/httpx_1.6.0_linux_${PD_ARCH}.zip; \
     unzip -jq httpx_1.6.0_linux_${PD_ARCH}.zip httpx; \
-    mv httpx /usr/local/bin/; \
+    mv httpx /usr/local/bin/httpx-pd; \
     \
     wget https://gh-proxy.org/https://github.com/projectdiscovery/nuclei/releases/download/v3.2.0/nuclei_3.2.0_linux_${PD_ARCH}.zip; \
     unzip -jq nuclei_3.2.0_linux_${PD_ARCH}.zip nuclei; \
