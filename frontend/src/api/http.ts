@@ -7,7 +7,7 @@ export interface ApiResponse<T = unknown> {
 }
 
 const http = axios.create({
-  baseURL: '/api',
+  baseURL: '/api/v1',
   timeout: 10000,
 })
 

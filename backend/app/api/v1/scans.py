@@ -128,7 +128,7 @@ async def create_tasks_for_steps(
     return task_ids
 
 
-@router.post("/", response_model=schemas.ApiResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("", response_model=schemas.ApiResponse, status_code=status.HTTP_202_ACCEPTED)
 async def create_scan_job(
     scan_in: schemas.ScanRequest,  # <--- 使用 Body 接收所有参数
     db: AsyncSession = Depends(deps.get_db),

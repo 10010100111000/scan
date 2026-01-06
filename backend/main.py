@@ -17,8 +17,9 @@ from app.core.arq_config import close_arq_pool
 
 # 1. 创建 FastAPI 应用实例
 app = FastAPI(
-    title="combo",
-    description="个人自残扫描管理平台"
+  title="combo",
+    description="渗透测试扫描管理平台",
+    version="1.0.0"  
 )
 
 # 允许前端跨域访问 (便于 Docker/本地调试)
@@ -61,7 +62,7 @@ async def on_startup():
     else:
         raise last_err
 
-# --- 新增：定义一个“关闭”事件 ---
+# --- 定义一个“关闭”事件 ---
 @app.on_event("shutdown")
 async def on_shutdown():
     """在 FastAPI 关闭时, 关闭 ARQ 连接池"""
@@ -69,7 +70,7 @@ async def on_shutdown():
     await close_arq_pool()
     print("ARQ Redis 连接池已关闭。")
 
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router, prefix="/api/v1")
 
 if FRONTEND_DIST.exists():
     assets_dir = FRONTEND_DIST / "assets"
@@ -100,4 +101,4 @@ async def serve_spa(full_path: str):
     if index_file.exists():
         return FileResponse(index_file)
 
-    raise HTTPException(status_code=404, detail="页面不存在，请先构建前端 dist 目录")
+    raise HTTPException(status_code=404, detail="页面不存在")

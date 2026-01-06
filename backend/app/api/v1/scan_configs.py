@@ -12,8 +12,8 @@ from app.data import models
 
 router = APIRouter()
 
-
-@router.get("/scan-strategies", response_model=schemas.ApiResponse)
+# 组合后路径: /api/v1/scan-strategies
+@router.get("", response_model=schemas.ApiResponse)
 async def list_scan_strategies(
     current_user: models.User = Depends(deps.get_current_active_user),
 ):
