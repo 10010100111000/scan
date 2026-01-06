@@ -1,14 +1,14 @@
 <template>
-  <div class="h-full w-full flex flex-col items-center justify-center relative overflow-hidden text-slate-200">
+  <div class="h-full w-full flex flex-col items-center relative isolate">
     
-    <div class="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
       <div class="absolute top-[-10%] left-[20%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse-slow"></div>
       <div class="absolute bottom-[-10%] right-[20%] w-[400px] h-[400px] bg-purple-600/20 rounded-full blur-[100px] mix-blend-screen animate-pulse-slow" style="animation-delay: 2s;"></div>
     </div>
 
-    <div class="w-full max-w-3xl px-6 z-10 flex flex-col items-center">
+    <div class="flex-1 w-full max-w-3xl px-6 z-10 flex flex-col items-center justify-center">
       
-      <h1 class="text-4xl md:text-6xl font-black mb-4 tracking-tight text-center">
+      <h1 class="text-4xl md:text-6xl font-black mb-4 tracking-tight text-center text-slate-200">
         What to <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">scan</span> today?
       </h1>
       <p class="text-slate-400 mb-12 text-lg md:text-xl font-light text-center max-w-xl mx-auto">
@@ -19,11 +19,9 @@
         <div class="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
         
         <div class="relative flex items-center bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl transition-all duration-300 focus-within:border-blue-500/50 focus-within:ring-1 focus-within:ring-blue-500/50">
-          
           <div class="pl-6 text-slate-400">
             <el-icon :size="24"><Search /></el-icon>
           </div>
-          
           <input 
             v-model="target"
             @keydown.enter="handleAction"
@@ -33,7 +31,6 @@
             autofocus
             spellcheck="false"
           />
-          
           <div class="pr-3">
             <button 
               class="h-12 px-8 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
@@ -48,7 +45,6 @@
       </div>
 
       <div class="mt-10 flex flex-wrap justify-center gap-4 animate-fade-in-up">
-        
         <el-popover 
           placement="bottom" 
           :width="300" 
@@ -65,7 +61,6 @@
               <el-icon class="ml-2 text-slate-500 text-xs"><ArrowDown /></el-icon>
             </div>
           </template>
-          
           <div class="p-2">
             <div v-if="isCreatingProject" class="flex flex-col gap-2 animate-fade-in">
                <div class="text-xs text-slate-400 font-medium px-1">新建项目</div>
@@ -80,7 +75,6 @@
                  <el-button size="small" type="primary" :loading="createLoading" @click="handleInlineCreate">创建</el-button>
                </div>
             </div>
-
             <div v-else class="flex flex-col h-full">
               <div class="text-xs text-slate-400 mb-2 px-1">切换项目</div>
               <div class="max-h-56 overflow-y-auto custom-scrollbar space-y-1">
@@ -126,11 +120,10 @@
             </div>
           </div>
         </el-popover>
-
       </div>
     </div>
 
-    <div class="absolute bottom-12 left-0 w-full text-center z-10">
+    <div class="w-full text-center z-10 pb-12 mt-auto">
       <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">RECENT TARGETS</p>
       <div class="flex flex-wrap justify-center gap-2 px-4">
         <span 
@@ -151,7 +144,6 @@ import { Search, Folder, Lightning, ArrowDown, Check, Plus } from '@element-plus
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
-// API 引入保持不变
 import { 
   fetchProjects,
   searchAssetsByName,     
@@ -284,7 +276,7 @@ const formatStrategyName = (rawName: string) => {
 </script>
 
 <style>
-/* 全局样式覆盖：为了让 Popover 也变成玻璃风格 */
+/* 玻璃风格 Popover */
 .glass-popover.el-popover {
   background: rgba(15, 23, 42, 0.9) !important;
   backdrop-filter: blur(12px) !important;
@@ -299,14 +291,12 @@ const formatStrategyName = (rawName: string) => {
 </style>
 
 <style scoped>
-/* 胶囊按钮样式 */
 .config-chip {
   @apply flex items-center px-4 py-2.5 rounded-full cursor-pointer select-none transition-all duration-200
          bg-slate-800/40 border border-slate-700/50 text-slate-300 text-sm font-medium
          hover:bg-slate-700/60 hover:border-slate-600 hover:text-white hover:scale-105 active:scale-95;
 }
 
-/* 简单的入场动画 */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -324,7 +314,6 @@ const formatStrategyName = (rawName: string) => {
   50% { opacity: .5; }
 }
 
-/* 滚动条美化 */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #334155; border-radius: 4px; }

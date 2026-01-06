@@ -11,29 +11,15 @@
     </div>
 
     <Teleport to="body">
-      <transition
-        name="scan-overlay"
-        @before-enter="onOverlayBeforeEnter"
-        @after-enter="onOverlayAfterEnter"
-        @after-leave="onOverlayAfterLeave"
-      >
+      <transition name="scan-overlay">
         <div v-if="scanOverlayOpen" class="scan-overlay" @click.self="closeScan">
           <div class="scan-overlay__backdrop" @click="closeScan"></div>
           <div class="scan-overlay__panel" @click.stop>
             <button class="scan-overlay__close" type="button" @click="closeScan" aria-label="Close scan overlay">
               <span aria-hidden="true">&times;</span>
             </button>
-            <div v-if="!scanOverlayReady" class="scan-overlay__skeleton">
-              <div class="skeleton-block title"></div>
-              <div class="skeleton-block"></div>
-              <div class="skeleton-block"></div>
-              <div class="skeleton-grid">
-                <div class="skeleton-block"></div>
-                <div class="skeleton-block"></div>
-                <div class="skeleton-block"></div>
-              </div>
-            </div>
-            <ScanView v-else />
+            
+            <ScanView />
           </div>
         </div>
       </transition>
@@ -52,7 +38,7 @@ import { provideScanOverlay } from '@/composables/useScanOverlay'
 const route = useRoute()
 const railCollapsed = ref(false)
 const scanOverlayOpen = ref(false)
-const scanOverlayReady = ref(false)
+// 移除 scanOverlayReady 相关逻辑，不再需要延迟显示
 
 const showRightRail = computed(() => route.meta.showRightRail === true)
 const gridStyle = computed(() => ({
@@ -74,24 +60,8 @@ const closeScan = () => {
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
-  if (!scanOverlayOpen.value) {
-    return
-  }
-  if (event.key === 'Escape') {
-    closeScan()
-  }
-}
-
-const onOverlayBeforeEnter = () => {
-  scanOverlayReady.value = false
-}
-
-const onOverlayAfterEnter = () => {
-  scanOverlayReady.value = true
-}
-
-const onOverlayAfterLeave = () => {
-  scanOverlayReady.value = false
+  if (!scanOverlayOpen.value) return
+  if (event.key === 'Escape') closeScan()
 }
 
 provideScanOverlay({
@@ -136,20 +106,9 @@ watch(scanOverlayOpen, (isOpen) => {
   box-sizing: border-box;
 }
 
-.app-shell__grid > * {
-  min-width: 0;
-  box-sizing: border-box;
-}
-
 .app-shell__main {
   min-width: 0;
   width: 100%;
-  display: block;
-}
-
-.app-shell__main > * {
-  width: 100%;
-  min-width: 0;
 }
 
 .app-shell__right {
@@ -166,6 +125,8 @@ watch(scanOverlayOpen, (isOpen) => {
   inset: 0;
   z-index: 2000;
   display: grid;
+  /* 确保整个 Overlay 不会滚动 */
+  overflow: hidden; 
 }
 
 .scan-overlay__backdrop {
@@ -182,61 +143,38 @@ watch(scanOverlayOpen, (isOpen) => {
   width: 100%;
   background: #0b1020;
   box-shadow: 0 -24px 80px rgba(0, 0, 0, 0.4);
-  overflow: auto;
+  /* 关键修改：禁止 Panel 出现滚动条，交由 ScanView 内部处理布局 */
+  overflow: hidden; 
 }
 
 .scan-overlay__close {
   position: fixed;
-  top: 18px;
-  right: 18px;
+  top: 24px;
+  right: 24px;
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.8);
-  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(15, 23, 42, 0.6);
+  color: #94a3b8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 2101;
-  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
 }
 
 .scan-overlay__close:hover {
-  transform: translateY(-1px);
-  border-color: rgba(226, 232, 240, 0.5);
-  background: rgba(30, 41, 59, 0.9);
-}
-
-.scan-overlay__skeleton {
-  padding: 32px 48px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.skeleton-block {
-  height: 16px;
-  border-radius: 10px;
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.12), rgba(148, 163, 184, 0.28), rgba(148, 163, 184, 0.12));
-  animation: shimmer 1.6s infinite;
-}
-
-.skeleton-block.title {
-  height: 28px;
-  width: 240px;
-}
-
-.skeleton-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  background: rgba(30, 41, 59, 0.8);
+  color: #fff;
+  border-color: rgba(148, 163, 184, 0.3);
 }
 
 .scan-overlay-enter-active,
 .scan-overlay-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .scan-overlay-enter-from,
@@ -246,20 +184,11 @@ watch(scanOverlayOpen, (isOpen) => {
 
 .scan-overlay-enter-active .scan-overlay__panel,
 .scan-overlay-leave-active .scan-overlay__panel {
-  transition: transform 0.35s ease;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .scan-overlay-enter-from .scan-overlay__panel,
 .scan-overlay-leave-to .scan-overlay__panel {
   transform: translateY(100%);
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200px 0;
-  }
-  100% {
-    background-position: 200px 0;
-  }
 }
 </style>
