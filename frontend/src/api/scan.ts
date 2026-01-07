@@ -181,6 +181,14 @@ export async function createAsset(projectId: number, payload: { name: string; ty
 }
 
 /**
+ * [Assets - Delete] 删除资产
+ * 对应后端: DELETE /api/v1/assets/{id}
+ */
+export async function deleteAsset(assetId: number) {
+  return request<{ message?: string }>(http.delete(`/assets/${assetId}`))
+}
+
+/**
  * [Assets - Detail] 获取单个资产详情
  */
 export async function fetchAssetById(assetId: number) {
