@@ -1,228 +1,418 @@
 <template>
-  <section class="assets-view">
-    <header class="assets-header card-glass">
-      <div>
-        <p class="text-faint">Global Inventory</p>
-        <h2 class="hero-title">资产库</h2>
-        <p class="text-faint">查看所有项目的资产概览。</p>
-      </div>
-      <div class="assets-actions">
-        <el-input 
-          v-model="searchQuery" 
-          size="default" 
-          clearable 
-          placeholder="搜索资产名称..." 
-          @keyup.enter="handleSearch"
-          @clear="handleSearch"
-          class="w-64"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        <el-button :icon="Refresh" circle @click="loadData" />
-      </div>
-    </header>
-
-    <div class="card-glass assets-table-container" v-loading="loading">
-      <el-table :data="assets" size="default" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="80" />
-        
-        <el-table-column label="资产名称" min-width="200">
-          <template #default="{ row }">
-            <span class="font-medium text-blue-600 dark:text-blue-400">{{ row.name }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="type" label="类型" width="120">
-          <template #default="{ row }">
-             <el-tag :type="row.type === 'domain' ? '' : 'warning'" size="small" effect="plain">
-               {{ row.type.toUpperCase() }}
-             </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="所属项目ID" width="120" align="center">
-          <template #default="{ row }">
-            <span class="text-gray-500">#{{ row.project_id }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="创建时间" width="180">
-          <template #default="{ row }">
-            <span class="text-gray-500 text-sm">{{ formatDate(row.created_at) }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="goToDetail(row.id)">详情</el-button>
-            <el-button link type="primary" size="small" @click="runQuickScan(row)">扫描</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="pagination-bar">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
-          :total="total" 
-          @size-change="handleSizeChange"
-          @current-change="handlePageChange"
-          background
-        />
+  <div class="flex h-full gap-4 fade-in">
+    
+    <aside class="w-72 flex flex-col gap-4">
+      <div class="card-glass p-4 rounded-2xl">
+        <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Total Assets</div>
+        <div class="text-3xl font-black text-slate-100 mb-1">{{ globalStats.total }}</div>
+        <div class="flex gap-2 text-xs">
+          <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            {{ globalStats.domains }} Domains
+          </span>
+          <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            {{ globalStats.cidrs }} CIDRs
+          </span>
         </div>
-    </div>
-  </section>
+      </div>
+
+      <div class="card-glass flex-1 rounded-2xl overflow-hidden flex flex-col">
+        <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/20">
+          <span class="font-bold text-slate-300">Projects</span>
+          <el-button link type="primary" size="small" @click="openCreateProject">
+            <el-icon><Plus /></el-icon>
+          </el-button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+          <div 
+            class="project-item"
+            :class="{ 'active': selectedProjectId === null }"
+            @click="selectedProjectId = null"
+          >
+            <el-icon><Menu /></el-icon>
+            <span class="flex-1">全部资产</span>
+            <span class="count-badge">{{ assetList.length }}</span>
+          </div>
+
+          <div 
+            v-for="p in projects" :key="p.id"
+            class="project-item"
+            :class="{ 'active': selectedProjectId === p.id }"
+            @click="selectedProjectId = p.id"
+          >
+            <el-icon><Folder /></el-icon>
+            <span class="flex-1 truncate">{{ p.name }}</span>
+            <el-icon class="text-slate-600 opacity-0 group-hover:opacity-100"><ArrowRight /></el-icon>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col gap-4 min-w-0">
+      
+      <div class="card-glass p-4 rounded-2xl flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <div class="text-lg font-bold text-slate-200">
+             {{ currentProjectName }}
+          </div>
+          <el-divider direction="vertical" class="border-slate-600" />
+          <el-input 
+            v-model="searchQuery" 
+            placeholder="搜索资产名称 / IP..." 
+            :prefix-icon="Search"
+            class="w-64 glass-input"
+            clearable
+          />
+          
+          <el-radio-group v-model="typeFilter" size="small" class="glass-radio">
+            <el-radio-button label="all">All</el-radio-button>
+            <el-radio-button label="domain">Domains</el-radio-button>
+            <el-radio-button label="cidr">CIDRs</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <el-button type="primary" color="#3b82f6" class="shadow-lg shadow-blue-500/20" @click="openCreateAsset">
+          <el-icon class="mr-1"><Plus /></el-icon> 添加资产
+        </el-button>
+      </div>
+
+      <div class="card-glass flex-1 rounded-2xl overflow-hidden relative">
+        <el-table 
+          :data="filteredAssets" 
+          style="width: 100%; height: 100%" 
+          class="glass-table absolute inset-0"
+          v-loading="loading"
+        >
+          <el-table-column width="60" align="center">
+            <template #default="{ row }">
+              <div class="flex justify-center">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+                     :class="row.type === 'domain' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'">
+                  <el-icon><component :is="row.type === 'domain' ? 'Globe' : 'Connection'" /></el-icon>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="Asset Name" min-width="200">
+            <template #default="{ row }">
+              <div class="flex flex-col cursor-pointer group" @click="goToResults(row)">
+                <span class="font-bold text-slate-200 group-hover:text-blue-400 transition-colors">{{ row.name }}</span>
+                <span class="text-xs text-slate-500">{{ new Date(row.created_at).toLocaleDateString() }}</span>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="Project" width="150" v-if="selectedProjectId === null">
+             <template #default="{ row }">
+               <span class="text-xs px-2 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                 {{ getProjectName(row.project_id) }}
+               </span>
+             </template>
+          </el-table-column>
+
+          <el-table-column align="right" width="180">
+            <template #default="{ row }">
+              <div class="flex justify-end gap-2 opacity-80 hover:opacity-100">
+                 <el-tooltip content="立即扫描" placement="top" effect="light">
+                    <el-button circle size="small" type="primary" plain @click.stop="quickScan(row)">
+                      <el-icon><Lightning /></el-icon>
+                    </el-button>
+                 </el-tooltip>
+                 
+                 <el-tooltip content="删除" placement="top" effect="light">
+                    <el-button circle size="small" type="danger" plain @click.stop="handleDelete(row)">
+                       <el-icon><Delete /></el-icon>
+                    </el-button>
+                 </el-tooltip>
+              </div>
+            </template>
+          </el-table-column>
+
+          <template #empty>
+            <el-empty description="暂无资产" :image-size="100" />
+          </template>
+        </el-table>
+      </div>
+    </main>
+
+    <el-dialog
+      v-model="createVisible"
+      title="添加资产"
+      width="400px"
+      class="glass-dialog"
+      align-center
+    >
+      <el-form label-position="top">
+        <el-form-item label="所属项目">
+           <el-select v-model="formProjectId" placeholder="选择项目" class="w-full">
+              <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
+           </el-select>
+        </el-form-item>
+        
+        <el-form-item label="资产目标">
+          <el-input 
+            v-model="formTargets" 
+            type="textarea" 
+            :rows="4" 
+            placeholder="example.com&#10;192.168.1.0/24&#10;(支持批量粘贴，一行一个)" 
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createVisible = false">取消</el-button>
+          <el-button type="primary" :loading="creating" @click="submitCreate">
+            确定添加
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="createProjectVisible" title="新建项目" width="300px" class="glass-dialog" align-center>
+       <el-input v-model="newProjectName" placeholder="项目名称" @keyup.enter="submitCreateProject" />
+       <template #footer>
+          <el-button type="primary" class="w-full" @click="submitCreateProject" :loading="projectCreating">创建</el-button>
+       </template>
+    </el-dialog>
+
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-// 引入新定义的 API
-import { fetchGlobalAssets, triggerScan, type Asset } from '@/api/scan'
+import { 
+  Menu, Folder, Plus, Search, Globe, Connection, 
+  ArrowRight, Lightning, Delete 
+} from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { 
+  fetchProjects, 
+  fetchAssets, // 注意：这里我们使用 fetchAssets 获取所有资产，自己在前端过滤，或者后端支持 filtering
+  createAsset,
+  createProject,
+  triggerScan,
+  type Asset,
+  type Project
+} from '@/api/scan'
 
 const router = useRouter()
-
-// --- 状态定义 ---
 const loading = ref(false)
-const assets = ref<Asset[]>([])
+const projects = ref<Project[]>([])
+const assetList = ref<Asset[]>([])
+
+// 状态
+const selectedProjectId = ref<number | null>(null)
 const searchQuery = ref('')
-const currentPage = ref(1)
-const pageSize = ref(20)
-const total = ref(0) // 后端目前没返回 total，后续需要后端支持
+const typeFilter = ref('all')
 
-// --- 核心逻辑 ---
+// 新建资产相关
+const createVisible = ref(false)
+const creating = ref(false)
+const formProjectId = ref<number | null>(null)
+const formTargets = ref('')
 
-const loadData = async () => {
+// 新建项目相关
+const createProjectVisible = ref(false)
+const projectCreating = ref(false)
+const newProjectName = ref('')
+
+// --- Computed ---
+
+const globalStats = computed(() => {
+  return {
+    total: assetList.value.length,
+    domains: assetList.value.filter(a => a.type === 'domain').length,
+    cidrs: assetList.value.filter(a => a.type === 'cidr').length
+  }
+})
+
+const currentProjectName = computed(() => {
+  if (selectedProjectId.value === null) return 'All Assets'
+  const p = projects.value.find(p => p.id === selectedProjectId.value)
+  return p ? p.name : 'Unknown Project'
+})
+
+const filteredAssets = computed(() => {
+  let res = assetList.value
+  
+  // 1. 项目过滤
+  if (selectedProjectId.value !== null) {
+    res = res.filter(a => a.project_id === selectedProjectId.value)
+  }
+  
+  // 2. 类型过滤
+  if (typeFilter.value !== 'all') {
+    res = res.filter(a => a.type === typeFilter.value)
+  }
+  
+  // 3. 搜索过滤
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    res = res.filter(a => a.name.toLowerCase().includes(q))
+  }
+  
+  return res
+})
+
+// --- Methods ---
+
+const initData = async () => {
   loading.value = true
   try {
-    const skip = (currentPage.value - 1) * pageSize.value
-    
-    // 调用全局资产接口
-    const res = await fetchGlobalAssets({
-      skip,
-      limit: pageSize.value,
-      search: searchQuery.value || undefined
-    })
-
-    // 兼容处理：检查返回的是数组还是包含 items 的对象
-    // 根据目前的 backend 代码，它是直接返回数组 data
-    const list = Array.isArray(res) ? res : (res['data'] || [])
-    
-    assets.value = list
-    // total.value = res.total || 0  // 暂时注释，等后端加上 total 字段
-    
-  } catch (error) {
-    console.error(error)
-    ElMessage.error('加载资产列表失败')
+    const [pRes, aRes] = await Promise.all([
+      fetchProjects({ limit: 100 }),
+      fetchAssets({ limit: 1000 }) // 获取所有资产用于前端快速筛选
+    ])
+    projects.value = pRes || []
+    assetList.value = aRes || [] // 假设 fetchAssets 返回数组
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('加载数据失败')
   } finally {
     loading.value = false
   }
 }
 
-// 搜索
-const handleSearch = () => {
-  currentPage.value = 1 // 重置到第一页
-  loadData()
+const getProjectName = (pid: number) => {
+  return projects.value.find(p => p.id === pid)?.name || 'Unknown'
 }
 
-// 分页
-const handleSizeChange = (val: number) => {
-  pageSize.value = val
-  loadData()
-}
-const handlePageChange = (val: number) => {
-  currentPage.value = val
-  loadData()
+const openCreateProject = () => {
+  newProjectName.value = ''
+  createProjectVisible.value = true
 }
 
-// 格式化时间
-const formatDate = (dateStr: string) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString()
-}
-
-// 跳转详情
-const goToDetail = (id: number) => {
-  router.push(`/results/${id}`) // 假设这是详情页路由
-}
-
-// 快速扫描 (调用新的 Scans API)
-const runQuickScan = async (row: Asset) => {
+const submitCreateProject = async () => {
+  if (!newProjectName.value.trim()) return
+  projectCreating.value = true
   try {
-    ElMessage.info(`正在为 ${row.name} 启动快速扫描...`)
-    await triggerScan({
-      asset_id: row.id,
-      strategy_name: '1. 域名快速侦察 (Web)' // 暂时硬编码一个默认策略，或者弹窗让用户选
-    })
-    ElMessage.success('扫描任务已提交')
-    router.push('/tasks')
-  } catch (e) {
-    ElMessage.error('启动扫描失败')
+    const res = await createProject({ name: newProjectName.value })
+    projects.value.push(res)
+    ElMessage.success('项目创建成功')
+    createProjectVisible.value = false
+    selectedProjectId.value = res.id // 自动切过去
+  } catch (e: any) {
+    ElMessage.error(e.message)
+  } finally {
+    projectCreating.value = false
   }
 }
 
-// 初始化
+const openCreateAsset = () => {
+  // 默认选中当前项目
+  formProjectId.value = selectedProjectId.value || (projects.value.length > 0 ? projects.value[0].id : null)
+  formTargets.value = ''
+  createVisible.value = true
+}
+
+const submitCreate = async () => {
+  if (!formProjectId.value || !formTargets.value.trim()) {
+    return ElMessage.warning('请补全信息')
+  }
+  
+  creating.value = true
+  // 处理多行输入
+  const lines = formTargets.value.split('\n').map(s => s.trim()).filter(s => s)
+  
+  let successCount = 0
+  for (const target of lines) {
+    try {
+      const isCidr = target.includes('/') || /^\d+\.\d+\.\d+\.\d+$/.test(target)
+      const type = isCidr ? 'cidr' : 'domain'
+      const newAsset = await createAsset(formProjectId.value, { name: target, type })
+      assetList.value.unshift(newAsset) // 加到列表头
+      successCount++
+    } catch (e) {
+      console.error(`Failed to add ${target}`, e)
+    }
+  }
+  
+  ElMessage.success(`成功添加 ${successCount} 个资产`)
+  createVisible.value = false
+  creating.value = false
+}
+
+const quickScan = async (row: Asset) => {
+  try {
+    // 这里使用默认策略 'full-scan' 或弹出选择
+    // 为了简化交互，我们这里直接触发一个默认扫描，或者您可以扩展为弹窗选择
+    await triggerScan({ asset_id: row.id, strategy_name: 'discovery' }) 
+    ElMessage.success(`已对 ${row.name} 发起扫描`)
+    // 跳转任务页查看
+    router.push('/tasks')
+  } catch (e: any) {
+    ElMessage.error('启动失败: ' + e.message)
+  }
+}
+
+const handleDelete = async (row: Asset) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除 ${row.name} 吗？相关数据将一并清除。`, '警告', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      draggable: true
+    })
+    // 假设 api 有 deleteAsset，暂时先前端移除模拟
+    // await deleteAsset(row.id)
+    assetList.value = assetList.value.filter(a => a.id !== row.id)
+    ElMessage.success('已删除')
+  } catch (e) {
+    // cancel
+  }
+}
+
+const goToResults = (row: Asset) => {
+  // 点击资产，跳转到结果详情页
+  router.push({ name: 'Results', params: { assetId: row.id } })
+}
+
 onMounted(() => {
-  loadData()
+  initData()
 })
 </script>
 
 <style scoped>
-.assets-view {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-  width: 100%;
-  padding-bottom: 2rem;
+.fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.assets-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px;
-  border-radius: 16px;
+/* 左侧项目项样式 */
+.project-item {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all
+         text-slate-400 hover:text-slate-100 hover:bg-white/5 border border-transparent select-none group;
+}
+.project-item.active {
+  @apply bg-blue-600/20 text-blue-400 border-blue-500/30 font-bold;
+}
+.count-badge {
+  @apply text-xs bg-slate-800 px-1.5 rounded text-slate-500 group-hover:text-slate-300 transition-colors;
 }
 
-.assets-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.assets-table-container {
-  padding: 16px;
-  border-radius: 16px;
-  min-height: 400px;
-}
-
-/* 透视卡片风格适配 */
-.assets-table-container :deep(.el-table) {
-  background: transparent;
+/* 玻璃风格表格覆盖 */
+:deep(.glass-table) {
+  --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: transparent;
+  --el-table-header-bg-color: rgba(30, 41, 59, 0.4); /* slate-800/40 */
+  --el-table-border-color: rgba(255,255,255,0.05);
+  --el-table-row-hover-bg-color: rgba(255,255,255,0.05);
+  --el-table-text-color: #94a3b8;
+  --el-table-header-text-color: #e2e8f0;
 }
+:deep(.el-table__inner-wrapper::before) { display: none; }
 
-.assets-table-container :deep(.el-table th) {
-  background-color: transparent !important;
-  color: #64748b; /* text-slate-500 */
+/* 玻璃输入框覆盖 */
+:deep(.glass-input .el-input__wrapper) {
+  background-color: rgba(15, 23, 42, 0.5) !important;
+  box-shadow: 0 0 0 1px rgba(71, 85, 105, 0.5) !important;
 }
-
-.assets-table-container :deep(.el-table td) {
-  background-color: transparent !important;
-}
-
-.pagination-bar {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
+:deep(.glass-input .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #3b82f6 !important;
 }
 </style>
