@@ -24,6 +24,7 @@ async def list_assets(
     skip: int = Query(0, ge=0, description="偏移量"),
     limit: int = Query(20, ge=1, le=200, description="返回条目数"),
     search: Optional[str] = Query(None, description="按资产名称模糊搜索"),
+    asset_type: Optional[schemas.AssetTypeLiteral] = Query(None, alias="type", description="按资产类型过滤"),
     project_id: Optional[int] = Query(None, description="按项目 ID 过滤"), # <--- 核心：通过参数过滤
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -41,6 +42,9 @@ async def list_assets(
         
     if search:
         stmt = stmt.where(models.Asset.name.ilike(f"%{search}%"))
+
+    if asset_type is not None:
+        stmt = stmt.where(models.Asset.type == asset_type)
         
     stmt = stmt.order_by(models.Asset.id.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
