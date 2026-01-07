@@ -158,3 +158,19 @@ async def get_asset_detail(
 
 
 # 5. 删除 (DELETE /{id}) 
+# -----------------------------------------------------------------------------
+# 5. 删除接口 (AssetsView)
+# -----------------------------------------------------------------------------
+@router.delete("/{asset_id}", summary="删除资产", response_model=schemas.ApiResponse)
+async def delete_asset(
+    asset_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+):
+    asset = await db.get(models.Asset, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    await db.delete(asset)
+    await db.commit()
+    return success_response(msg="Asset deleted successfully")
