@@ -273,3 +273,32 @@ export async function fetchPortDetail(portId: number) {
 export async function fetchVulnDetail(vulnId: number) {
   return request<VulnerabilitySummary>(http.get(`/results/vulns/${vulnId}`))
 }
+
+//  仪表盘数据接口定义
+export interface DashboardStats {
+  kpi: {
+    assets_total: number
+    assets_domains: number
+    tasks_running: number
+    tasks_pending: number
+    tasks_completed_today: number
+  }
+  charts: {
+    trend_dates: string[]
+    trend_values: number[]
+    vuln_distribution: Array<{ name: string; value: number }>
+  }
+  lists: {
+    recent_assets: Array<{
+      id: number
+      name: string
+      type: string
+      created_at: string
+    }>
+  }
+}
+
+// 获取仪表盘聚合数据的方法
+export async function fetchDashboardStats() {
+  return request<DashboardStats>(http.get('/stats/dashboard'))
+}

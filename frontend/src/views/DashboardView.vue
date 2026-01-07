@@ -1,394 +1,279 @@
 <template>
-  <section class="dashboard-main">
-    <header class="dashboard-header card-glass">
+  <section class="dashboard-main fade-in">
+    <header class="dashboard-header card-glass mb-4">
       <div>
-        <p class="text-faint">欢迎回来</p>
-        <h2 class="hero-title">Attack Surface 指挥中心</h2>
-        <p class="text-faint header-hint">统一查看资产、调度扫描、跟踪暴露面。</p>
+        <p class="text-faint text-xs font-bold uppercase tracking-widest mb-1">Command Center</p>
+        <h2 class="hero-title text-2xl text-slate-100">攻击面概览</h2>
+        <p class="text-faint text-sm mt-1">
+          当前纳管资产 <span class="text-blue-400 font-bold">{{ stats.kpi.assets_total }}</span> 个，
+          今日已完成扫描 <span class="text-emerald-400 font-bold">{{ stats.kpi.tasks_completed_today }}</span> 次
+        </p>
       </div>
-      <div class="user-area">
-        <div class="user-meta">
-          <strong>{{ userInfo?.realName || userInfo?.username }}</strong>
-          <span class="text-faint">{{ userInfo?.roles?.join(', ') || '访客' }}</span>
+      <div class="flex items-center gap-4">
+        <div class="text-right hidden sm:block">
+          <div class="text-sm font-bold text-slate-200">{{ userInfo?.username }}</div>
+          <div class="text-xs text-slate-500">{{ userInfo?.roles?.[0] || 'Admin' }}</div>
         </div>
-        <el-avatar :size="40" :src="userInfo?.avatar">
-          {{ userInfo?.username?.slice(0, 1).toUpperCase() }}
+        <el-avatar class="bg-gradient-to-br from-blue-500 to-indigo-600 font-bold">
+          {{ userInfo?.username?.[0]?.toUpperCase() }}
         </el-avatar>
-        <el-button size="small" type="danger" @click="handleLogout">退出</el-button>
       </div>
     </header>
 
-    <section class="kpi-grid">
-      <div v-for="kpi in kpiCards" :key="kpi.title" class="card-glass kpi-card">
-        <div class="kpi-icon" :style="{ background: kpi.tint }">
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div v-for="(kpi, i) in kpiCards" :key="i" 
+           class="card-glass p-5 rounded-2xl flex items-center gap-4 hover:bg-white/5 transition-all cursor-default group">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg group-hover:scale-110 transition-transform"
+             :style="{ background: kpi.bg, color: kpi.color }">
           <el-icon><component :is="kpi.icon" /></el-icon>
         </div>
-        <div class="kpi-content">
-          <p class="text-faint">{{ kpi.title }}</p>
-          <div class="kpi-value-row">
-            <strong class="kpi-value">{{ kpi.value }}</strong>
-            <el-tag :type="kpi.tagType" size="small" effect="dark">{{ kpi.caption }}</el-tag>
+        <div>
+          <p class="text-xs text-slate-400 mb-0.5">{{ kpi.title }}</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-2xl font-bold text-slate-100 tracking-tight">{{ kpi.value }}</span>
+            <span v-if="kpi.sub" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50">
+              {{ kpi.sub }}
+            </span>
           </div>
-          <p class="kpi-sub">{{ kpi.subTitle }}</p>
         </div>
       </div>
     </section>
 
-    <section class="panel-grid">
-      <div class="card-glass panel">
-        <div class="panel-header">
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 h-[380px]">
+      <div class="card-glass lg:col-span-2 p-5 rounded-2xl flex flex-col relative overflow-hidden">
+        <div class="flex justify-between items-center mb-2 z-10">
           <div>
-            <p class="text-faint">资产预览</p>
-            <h3>最新资产</h3>
+            <h3 class="font-bold text-slate-200">近 7 天活跃度</h3>
+            <p class="text-xs text-slate-500">扫描任务执行趋势</p>
           </div>
-          <el-button text type="primary" size="small">导出</el-button>
+          <div class="flex gap-2">
+            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <span class="text-xs text-blue-400">Live</span>
+          </div>
         </div>
-        <div class="panel-body asset-table">
-          <el-table :data="assetsPreview" size="small" border stripe>
-            <el-table-column prop="name" label="资产" min-width="140" />
-            <el-table-column prop="ip" label="IP / 域名" min-width="140" />
-            <el-table-column label="标签" min-width="160">
-              <template #default="{ row }">
-                <div class="tag-row">
-                  <el-tag v-for="tag in row.tags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.status === '在线' ? 'success' : 'info'" size="small">{{ row.status }}</el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
+        <div class="flex-1 w-full min-h-0">
+          <v-chart class="chart" :option="trendOption" autoresize />
+        </div>
+      </div>
+
+      <div class="card-glass p-5 rounded-2xl flex flex-col relative">
+        <div class="mb-2 z-10">
+          <h3 class="font-bold text-slate-200">风险分布</h3>
+          <p class="text-xs text-slate-500">漏洞等级占比</p>
+        </div>
+        <div class="flex-1 w-full min-h-0 relative">
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span class="text-3xl font-black text-slate-100">{{ vulnTotal }}</span>
+            <span class="text-xs text-slate-500">Total</span>
+          </div>
+          <v-chart class="chart" :option="vulnOption" autoresize />
         </div>
       </div>
     </section>
 
-    <section class="panel-grid lower">
-      <div class="card-glass panel findings">
-        <div class="panel-header">
-          <div>
-            <p class="text-faint">最新发现</p>
-            <h3>近期暴露</h3>
-          </div>
-          <el-button text type="primary" size="small">导出报告</el-button>
+    <section class="card-glass p-5 rounded-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <div class="flex items-center gap-2">
+          <h3 class="font-bold text-slate-200">最新纳管资产</h3>
+          <el-tag size="small" effect="dark" round type="primary">{{ stats.lists.recent_assets.length }} New</el-tag>
         </div>
-        <div class="panel-body findings-list">
-          <div v-for="finding in findings" :key="finding.title" class="finding-item">
-            <div class="finding-severity" :class="finding.level">
-              <el-icon><WarningFilled /></el-icon>
-            </div>
-            <div class="finding-content">
-              <h4>{{ finding.title }}</h4>
-              <p class="text-faint">{{ finding.target }}</p>
-                <div class="finding-tags">
-                  <el-tag size="small" :type="finding.level === 'critical' ? 'danger' : 'warning'">
-                  {{ finding.level === 'critical' ? '高危' : '中高' }}
-                  </el-tag>
-                  <el-tag size="small" effect="plain">{{ finding.category }}</el-tag>
-                </div>
-            </div>
-            <span class="text-faint">{{ finding.time }}</span>
-          </div>
-        </div>
+        <el-button text size="small" @click="$router.push('/assets')">查看全部 <el-icon class="ml-1"><ArrowRight /></el-icon></el-button>
       </div>
-
-      <div class="card-glass panel">
-        <div class="panel-header">
-          <div>
-            <p class="text-faint">活动脉搏</p>
-            <h3>近期动作</h3>
-          </div>
-          <el-button text type="primary" size="small" @click="refreshUser">刷新</el-button>
-        </div>
-        <div class="panel-body pulse">
-          <el-timeline>
-            <el-timeline-item
-              v-for="(entry, index) in activityPulse"
-              :key="index"
-              :timestamp="entry.time"
-              :type="entry.type"
-              hollow
-            >
-              <strong>{{ entry.title }}</strong>
-              <p class="text-faint">{{ entry.detail }}</p>
-            </el-timeline-item>
-          </el-timeline>
-        </div>
-      </div>
+      
+      <el-table 
+        :data="stats.lists.recent_assets" 
+        style="width: 100%" 
+        class="glass-table"
+      >
+        <el-table-column prop="name" label="资产名称" min-width="200">
+          <template #default="{ row }">
+            <span class="font-medium text-slate-200">{{ row.name }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="type" label="类型" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" :type="row.type === 'domain' ? '' : 'warning'">
+              {{ row.type.toUpperCase() }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="发现时间" align="right" width="180">
+          <template #default="{ row }">
+            <span class="text-slate-400 text-xs font-mono">{{ new Date(row.created_at).toLocaleString() }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { DataLine, Monitor, Timer, WarningFilled } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { Monitor, Timer, DataLine, Warning, ArrowRight } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { fetchDashboardStats, type DashboardStats } from '@/api/scan'
+
+// ECharts 核心组件引入
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart, PieChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import VChart from 'vue-echarts'
+
+// 注册组件
+use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 
 const auth = useAuthStore()
-const router = useRouter()
 const userInfo = computed(() => auth.userInfo)
+const loading = ref(true)
 
-const kpiCards = [
+// 初始空状态数据
+const stats = reactive<DashboardStats>({
+  kpi: { assets_total: 0, assets_domains: 0, tasks_running: 0, tasks_pending: 0, tasks_completed_today: 0 },
+  charts: { trend_dates: [], trend_values: [], vuln_distribution: [] },
+  lists: { recent_assets: [] }
+})
+
+// 计算 KPI 卡片配置 (响应式)
+const kpiCards = computed(() => [
   {
     title: '在线资产',
-    value: '142',
-    caption: '本周 +12%',
-    subTitle: '资产数量持续更新',
+    value: stats.kpi.assets_total,
+    sub: `${stats.kpi.assets_domains} Domains`,
     icon: Monitor,
-    tagType: 'success',
-    tint: 'linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.05))',
+    bg: 'rgba(16, 185, 129, 0.15)', color: '#34d399' // Emerald
   },
   {
-    title: '风险端口',
-    value: '87',
-    caption: '高优先级',
-    subTitle: '覆盖 17 个关键主机',
-    icon: WarningFilled,
-    tagType: 'danger',
-    tint: 'linear-gradient(135deg, rgba(248, 113, 113, 0.16), rgba(239, 68, 68, 0.06))',
-  },
-  {
-    title: '待执行扫描',
-    value: '36',
-    caption: '排队中',
-    subTitle: '预计 21 分钟内完成',
+    title: '正在扫描',
+    value: stats.kpi.tasks_running,
     icon: Timer,
-    tagType: 'warning',
-    tint: 'linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(234, 179, 8, 0.06))',
+    bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' // Blue
+  },
+  {
+    title: '待处理任务',
+    value: stats.kpi.tasks_pending,
+    icon: DataLine,
+    bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' // Amber
   },
   {
     title: '今日完成',
-    value: '18',
-    caption: 'SLA 稳定',
-    subTitle: '任务自动下发到扫描节点',
-    icon: DataLine,
-    tagType: 'info',
-    tint: 'linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(14, 165, 233, 0.06))',
+    value: stats.kpi.tasks_completed_today,
+    icon: Warning, // 暂时复用图标，可更换
+    bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' // Purple
+  }
+])
+
+// 计算漏洞总数
+const vulnTotal = computed(() => {
+  return stats.charts.vuln_distribution.reduce((acc, cur) => acc + cur.value, 0)
+})
+
+// ECharts 配置：趋势图
+const trendOption = computed(() => ({
+  backgroundColor: 'transparent',
+  tooltip: { 
+    trigger: 'axis',
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderColor: '#334155',
+    textStyle: { color: '#e2e8f0' }
   },
-]
+  grid: { top: 10, right: 10, bottom: 20, left: 0, containLabel: true },
+  xAxis: {
+    type: 'category',
+    data: stats.charts.trend_dates,
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { color: '#64748b', fontSize: 11 }
+  },
+  yAxis: {
+    type: 'value',
+    splitLine: { lineStyle: { color: '#334155', type: 'dashed', opacity: 0.3 } },
+    axisLabel: { color: '#64748b', fontSize: 11 }
+  },
+  series: [{
+    data: stats.charts.trend_values,
+    type: 'line',
+    smooth: true,
+    showSymbol: false,
+    lineStyle: { width: 3, color: '#38bdf8' },
+    areaStyle: {
+      color: {
+        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+        colorStops: [
+          { offset: 0, color: 'rgba(56, 189, 248, 0.4)' }, 
+          { offset: 1, color: 'rgba(56, 189, 248, 0)' }
+        ]
+      }
+    }
+  }]
+}))
 
-
-const assetsPreview = [
-  { name: 'api.cloud.example', ip: '10.12.3.21', tags: ['生产', 'API'], status: '在线' },
-  { name: 'cdn.edge.internal', ip: '172.19.4.11', tags: ['静态', '高带宽'], status: '在线' },
-  { name: 'jump.dev.lab', ip: '10.8.0.5', tags: ['测试', 'SSH'], status: '维护' },
-]
-
-const findings = [
-  { title: '组件风险 · Apache Struts2', target: 'api.cloud.example /443', category: '组件', level: 'critical', time: '2 分钟前' },
-  { title: '目录遍历疑似请求', target: 'cdn.edge.internal /static', category: '流量', level: 'major', time: '27 分钟前' },
-  { title: '弱口令尝试', target: 'jump.dev.lab /ssh', category: '鉴权', level: 'major', time: '1 小时前' },
-]
-
-const activityPulse = [
-  { title: '登录验证成功', detail: '刷新会话并同步用户资料', time: '刚刚', type: 'success' },
-  { title: '资产同步完成', detail: '资产池累计 142 条记录', time: '10:24', type: 'primary' },
-  { title: '基线报告已生成', detail: '报告已推送到通知渠道', time: '09:10', type: 'warning' },
-]
-
-const refreshUser = async () => {
-  await auth.fetchUserInfo()
-}
-
-const handleLogout = async () => {
-  await auth.logout()
-  router.replace({ name: 'Login' })
-}
+// ECharts 配置：环形图
+const vulnOption = computed(() => ({
+  backgroundColor: 'transparent',
+  tooltip: { trigger: 'item' },
+  legend: { 
+    bottom: 0, 
+    itemWidth: 8, itemHeight: 8,
+    textStyle: { color: '#94a3b8', fontSize: 11 } 
+  },
+  color: ['#ef4444', '#f97316', '#eab308', '#3b82f6'], // 红橙黄蓝
+  series: [{
+    type: 'pie',
+    radius: ['55%', '75%'],
+    center: ['50%', '42%'],
+    avoidLabelOverlap: false,
+    itemStyle: { 
+      borderRadius: 4, 
+      borderColor: '#1e293b', 
+      borderWidth: 2 
+    },
+    label: { show: false },
+    data: stats.charts.vuln_distribution
+  }]
+}))
 
 onMounted(async () => {
-  if (!auth.userInfo && auth.token) {
-    await auth.fetchUserInfo()
+  try {
+    const res = await fetchDashboardStats()
+    Object.assign(stats, res)
+  } catch (e) {
+    console.error('Failed to load dashboard stats', e)
+  } finally {
+    loading.value = false
   }
 })
 </script>
 
 <style scoped>
-.dashboard-main {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
+.chart {
+  height: 100%;
   width: 100%;
 }
 
-.dashboard-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-radius: 16px;
+.fade-in {
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.header-hint {
-  margin-top: 6px;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.user-area {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* 表格穿透样式：去背景、改边框 */
+.glass-table {
+  --el-table-bg-color: transparent !important;
+  --el-table-tr-bg-color: transparent !important;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.03) !important;
+  --el-table-border-color: rgba(255, 255, 255, 0.05) !important;
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.05) !important;
+  --el-table-text-color: #cbd5e1 !important;
+  --el-table-header-text-color: #94a3b8 !important;
+  background: transparent !important;
 }
 
-.user-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 160px;
-}
-
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-.kpi-card {
-  display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 14px;
-}
-
-.kpi-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  color: #e2e8f0;
-}
-
-.kpi-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.kpi-value-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.kpi-value {
-  font-size: 22px;
-}
-
-.kpi-sub {
-  margin: 0;
-  color: #94a3b8;
-  font-size: 13px;
-}
-
-.panel-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.panel-grid.lower {
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-}
-
-.panel {
-  padding: 16px;
-  border-radius: 16px;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.panel-header h3 {
-  margin: 4px 0 0;
-}
-
-.panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-
-.asset-table :deep(.el-table) {
-  background: transparent;
-  color: #e2e8f0;
-}
-
-.asset-table :deep(.el-table th),
-.asset-table :deep(.el-table tr) {
-  background-color: transparent;
-}
-
-.asset-table :deep(.el-table__body-wrapper) {
-  background: transparent;
-}
-
-.tag-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.findings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.finding-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  align-items: center;
-}
-
-.finding-severity {
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  color: #fee2e2;
-}
-
-.finding-severity.critical {
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(239, 68, 68, 0.08));
-}
-
-.finding-severity.major {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(234, 179, 8, 0.08));
-  color: #fef3c7;
-}
-
-.finding-content h4 {
-  margin: 0 0 6px;
-}
-
-.finding-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.pulse :deep(.el-timeline-item__content) {
-  color: #e2e8f0;
-}
-
-.pulse :deep(.el-timeline-item__timestamp) {
-  color: #94a3b8;
+/* 隐藏表格底部的白线 */
+:deep(.el-table__inner-wrapper::before) {
+  display: none;
 }
 </style>

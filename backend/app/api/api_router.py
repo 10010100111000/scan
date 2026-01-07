@@ -4,7 +4,7 @@ API v1 的主路由器
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, projects, assets, tasks, results, users, scan_configs, scans
+from app.api.v1 import auth, projects, assets, tasks, results, users, scan_configs, scans,stats
 
 api_router = APIRouter()
 
@@ -28,3 +28,6 @@ api_router.include_router(scan_configs.router, prefix="/scan-strategies", tags=[
 # === 结果与监控 (Results & Tasks) ===
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(results.router, prefix="/results", tags=["results"])
+
+#dashboard获取各种状态
+api_router.include_router(stats.router, prefix="/stats", tags=["stats"])
