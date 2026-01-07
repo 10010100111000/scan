@@ -2,7 +2,7 @@ from typing import Any
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, case, text
+from sqlalchemy import func, select, case
 
 from app.api import deps
 from app.core.responses import success_response
@@ -10,7 +10,7 @@ from app.data import models
 
 router = APIRouter()
 
-@router.get("/dashboard", summary="获取仪表盘核心指标")
+@router.get("/dashboard", summary="获取仪表盘聚合统计数据")
 async def get_dashboard_stats(
     db: AsyncSession = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -21,6 +21,8 @@ async def get_dashboard_stats(
     
     # 1. 资产 KPI
     # 统计总数和在线数 (假设 status='online' 代表在线)
+    # 你的 Asset 模型没有 status 字段，通常用 Host 的 status 或 IPAddress 的 status
+    # 这里我们统计总资产数和 IP 数作为示例
     assets_res = await db.execute(
         select(
             func.count(models.Asset.id).label("total"),
@@ -45,9 +47,33 @@ async def get_dashboard_stats(
     )
     tasks_data = tasks_res.one()
 
-    # 3. 趋势分析 (最近 7 天任务数)
-    # 使用 generate_series 生成日期序列 (PostgreSQL) 或者在应用层补全
-    # 这里演示简单分组查询
+    # 3. 漏洞分布 (Nuclei 真数据!)
+    # 直接从 Vulnerability 表聚合查询
+    vulns_stmt = select(
+        models.Vulnerability.severity, 
+        func.count(models.Vulnerability.id)
+    ).group_by(models.Vulnerability.severity)
+    
+    vulns_res = await db.execute(vulns_stmt)
+    
+    # 数据库查出来的是 [('high', 10), ('low', 5)...]
+    # 我们把它转成字典 {'high': 10, 'low': 5}
+    real_vuln_counts = {row.severity: row.count for row in vulns_res}
+    
+    # 转换为前端 ECharts 需要的格式 List[{name, value}]
+    # 并且我们可以做一个映射，把英文 severity 翻译成中文，或者保持原样
+    vuln_distribution = []
+    for severity, count in real_vuln_counts.items():
+        vuln_distribution.append({
+            "name": severity, # 如 "critical", "high"
+            "value": count
+        })
+        
+    # 如果数据库是空的，为了不让图表空着，可以给个默认空列表，前端会显示无数据
+    if not vuln_distribution:
+         vuln_distribution = [{"name": "暂无漏洞", "value": 0}]
+
+    # 4. 趋势分析 (最近 7 天任务数)
     seven_days_ago = datetime.now() - timedelta(days=6)
     trend_stmt = (
         select(
@@ -61,7 +87,6 @@ async def get_dashboard_stats(
     trend_res = await db.execute(trend_stmt)
     trend_map = {row.date: row.count for row in trend_res.all()}
     
-    # 补全日期 (防止某天没数据导致断线)
     trend_dates = []
     trend_values = []
     for i in range(7):
@@ -69,7 +94,7 @@ async def get_dashboard_stats(
         trend_dates.append(d)
         trend_values.append(trend_map.get(d, 0))
 
-    # 4. 最新资产列表
+    # 5. 最新资产列表
     recent_res = await db.execute(
         select(models.Asset).order_by(models.Asset.id.desc()).limit(5)
     )
@@ -89,13 +114,7 @@ async def get_dashboard_stats(
         "charts": {
             "trend_dates": trend_dates,
             "trend_values": trend_values,
-            # 这里先模拟漏洞分布，等你有了 Vulnerability 模型后再替换为真实查询
-            "vuln_distribution": [
-                {"name": "高危", "value": 5},
-                {"name": "中危", "value": 12},
-                {"name": "低危", "value": 25},
-                {"name": "信息", "value": 50}
-            ]
+            "vuln_distribution": vuln_distribution # <--- 这里使用的是真数据
         },
         "lists": {
             "recent_assets": recent_assets

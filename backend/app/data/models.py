@@ -260,7 +260,7 @@ class WebFinding(Base):
     http_service = relationship("HTTPService", back_populates="web_findings")
 
 
-# --- 用户模型 (已存在) ---
+# --- 用户模型  ---
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
