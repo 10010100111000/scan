@@ -24,53 +24,35 @@
         </div>
         
         <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-          <div 
-            class="project-item"
-            :class="{ 'active': selectedProjectId === null }"
-            @click="selectedProjectId = null"
-          >
-            <el-icon><Menu /></el-icon>
-            <span class="flex-1">全部资产</span>
-            <span class="count-badge">{{ assetList.length }}</span>
+          <div class="project-item" :class="{ 'active': selectedProjectId === null }" @click="selectedProjectId = null">
+            <el-icon><Menu /></el-icon><span class="flex-1">全部资产</span>
           </div>
-
-          <div 
-            v-for="p in projects" :key="p.id"
-            class="project-item"
-            :class="{ 'active': selectedProjectId === p.id }"
-            @click="selectedProjectId = p.id"
-          >
-            <el-icon><Folder /></el-icon>
-            <span class="flex-1 truncate">{{ p.name }}</span>
-            <el-icon class="text-slate-600 opacity-0 group-hover:opacity-100"><ArrowRight /></el-icon>
+          <div v-for="p in projects" :key="p.id" class="project-item" :class="{ 'active': selectedProjectId === p.id }" @click="selectedProjectId = p.id">
+            <el-icon><Folder /></el-icon><span class="flex-1 truncate">{{ p.name }}</span>
           </div>
         </div>
       </div>
     </aside>
 
     <main class="flex-1 flex flex-col gap-4 min-w-0">
-      
       <div class="card-glass p-4 rounded-2xl flex justify-between items-center">
         <div class="flex items-center gap-3">
-          <div class="text-lg font-bold text-slate-200">
-             {{ currentProjectName }}
-          </div>
+          <div class="text-lg font-bold text-slate-200">{{ currentProjectName }}</div>
           <el-divider direction="vertical" class="border-slate-600" />
           <el-input 
             v-model="searchQuery" 
-            placeholder="搜索资产名称 / IP..." 
-            :prefix-icon="Search"
-            class="w-64 glass-input"
-            clearable
+            placeholder="搜索资产..." 
+            :prefix-icon="Search" 
+            class="w-64 glass-input" 
+            clearable 
+            @change="fetchData" 
           />
-          
-          <el-radio-group v-model="typeFilter" size="small" class="glass-radio">
+          <el-radio-group v-model="typeFilter" size="small" class="glass-radio" @change="fetchData">
             <el-radio-button label="all">All</el-radio-button>
             <el-radio-button label="domain">Domains</el-radio-button>
             <el-radio-button label="cidr">CIDRs</el-radio-button>
           </el-radio-group>
         </div>
-
         <el-button type="primary" color="#3b82f6" class="shadow-lg shadow-blue-500/20" @click="openCreateAsset">
           <el-icon class="mr-1"><Plus /></el-icon> 添加资产
         </el-button>
@@ -78,7 +60,7 @@
 
       <div class="card-glass flex-1 rounded-2xl overflow-hidden relative">
         <el-table 
-          :data="filteredAssets" 
+          :data="assetList" 
           style="width: 100%; height: 100%" 
           class="glass-table absolute inset-0"
           v-loading="loading"
@@ -114,7 +96,7 @@
           <el-table-column align="right" width="180">
             <template #default="{ row }">
               <div class="flex justify-end gap-2 opacity-80 hover:opacity-100">
-                 <el-tooltip content="立即扫描" placement="top" effect="light">
+                 <el-tooltip content="扫描" placement="top" effect="light">
                     <el-button circle size="small" type="primary" plain @click.stop="quickScan(row)">
                       <el-icon><Lightning /></el-icon>
                     </el-button>
@@ -129,42 +111,26 @@
             </template>
           </el-table-column>
 
-          <template #empty>
-            <el-empty description="暂无资产" :image-size="100" />
-          </template>
+          <template #empty><el-empty description="暂无资产" :image-size="100" /></template>
         </el-table>
       </div>
     </main>
 
-    <el-dialog
-      v-model="createVisible"
-      title="添加资产"
-      width="400px"
-      class="glass-dialog"
-      align-center
-    >
+    <el-dialog v-model="createVisible" title="添加/查找资产" width="400px" class="glass-dialog" align-center>
       <el-form label-position="top">
         <el-form-item label="所属项目">
            <el-select v-model="formProjectId" placeholder="选择项目" class="w-full">
               <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
            </el-select>
         </el-form-item>
-        
         <el-form-item label="资产目标">
-          <el-input 
-            v-model="formTargets" 
-            type="textarea" 
-            :rows="4" 
-            placeholder="example.com&#10;192.168.1.0/24&#10;(支持批量粘贴，一行一个)" 
-          />
+          <el-input v-model="formTargets" type="textarea" :rows="4" placeholder="example.com&#10;192.168.1.0/24" />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createVisible = false">取消</el-button>
-          <el-button type="primary" :loading="creating" @click="submitCreate">
-            确定添加
-          </el-button>
+          <el-button type="primary" :loading="creating" @click="submitCreate">确定</el-button>
         </span>
       </template>
     </el-dialog>
@@ -175,26 +141,23 @@
           <el-button type="primary" class="w-full" @click="submitCreateProject" :loading="projectCreating">创建</el-button>
        </template>
     </el-dialog>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  Menu, Folder, Plus, Search, Globe, Connection, 
-  ArrowRight, Lightning, Delete 
-} from '@element-plus/icons-vue'
+import { Menu, Folder, Plus, Search, Globe, Connection, Lightning, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   fetchProjects, 
-  fetchAssets, // 注意：这里我们使用 fetchAssets 获取所有资产，自己在前端过滤，或者后端支持 filtering
-  createAsset,
-  createProject,
-  triggerScan,
-  type Asset,
-  type Project
+  fetchAssets, 
+  createAsset, 
+  createProject, 
+  triggerScan, 
+  deleteAsset, 
+  type Asset, 
+  type Project 
 } from '@/api/scan'
 
 const router = useRouter()
@@ -202,31 +165,23 @@ const loading = ref(false)
 const projects = ref<Project[]>([])
 const assetList = ref<Asset[]>([])
 
-// 状态
 const selectedProjectId = ref<number | null>(null)
 const searchQuery = ref('')
 const typeFilter = ref('all')
 
-// 新建资产相关
 const createVisible = ref(false)
 const creating = ref(false)
 const formProjectId = ref<number | null>(null)
 const formTargets = ref('')
-
-// 新建项目相关
 const createProjectVisible = ref(false)
 const projectCreating = ref(false)
 const newProjectName = ref('')
 
-// --- Computed ---
-
-const globalStats = computed(() => {
-  return {
-    total: assetList.value.length,
-    domains: assetList.value.filter(a => a.type === 'domain').length,
-    cidrs: assetList.value.filter(a => a.type === 'cidr').length
-  }
-})
+const globalStats = computed(() => ({
+  total: assetList.value.length,
+  domains: assetList.value.filter(a => a.type === 'domain').length,
+  cidrs: assetList.value.filter(a => a.type === 'cidr').length
+}))
 
 const currentProjectName = computed(() => {
   if (selectedProjectId.value === null) return 'All Assets'
@@ -234,45 +189,35 @@ const currentProjectName = computed(() => {
   return p ? p.name : 'Unknown Project'
 })
 
-const filteredAssets = computed(() => {
-  let res = assetList.value
-  
-  // 1. 项目过滤
-  if (selectedProjectId.value !== null) {
-    res = res.filter(a => a.project_id === selectedProjectId.value)
-  }
-  
-  // 2. 类型过滤
-  if (typeFilter.value !== 'all') {
-    res = res.filter(a => a.type === typeFilter.value)
-  }
-  
-  // 3. 搜索过滤
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    res = res.filter(a => a.name.toLowerCase().includes(q))
-  }
-  
-  return res
-})
-
-// --- Methods ---
-
-const initData = async () => {
+// [Core] 获取数据：后端支持分页和筛选
+const fetchData = async () => {
   loading.value = true
   try {
-    const [pRes, aRes] = await Promise.all([
-      fetchProjects({ limit: 100 }),
-      fetchAssets({ limit: 1000 }) // 获取所有资产用于前端快速筛选
-    ])
-    projects.value = pRes || []
-    assetList.value = aRes || [] // 假设 fetchAssets 返回数组
+    const params: any = { limit: 100 }
+    if (selectedProjectId.value) params.project_id = selectedProjectId.value
+    if (typeFilter.value !== 'all') params.type = typeFilter.value
+    if (searchQuery.value) params.search = searchQuery.value
+
+    const res = await fetchAssets(params)
+    // 兼容处理：如果拦截器解包了 ApiResponse，res 就是数组
+    // 如果没有解包，res.data 才是数组
+    const list = Array.isArray(res) ? res : (res['data'] || [])
+    assetList.value = list
   } catch (e) {
-    console.error(e)
-    ElMessage.error('加载数据失败')
+    ElMessage.error('加载资产失败')
   } finally {
     loading.value = false
   }
+}
+
+watch([selectedProjectId, typeFilter], () => { fetchData() })
+
+const initAll = async () => {
+  try {
+    const pRes = await fetchProjects({ limit: 100 })
+    projects.value = Array.isArray(pRes) ? pRes : (pRes['data'] || [])
+    fetchData()
+  } catch(e) { console.error(e) }
 }
 
 const getProjectName = (pid: number) => {
@@ -289,10 +234,10 @@ const submitCreateProject = async () => {
   projectCreating.value = true
   try {
     const res = await createProject({ name: newProjectName.value })
-    projects.value.push(res)
+    projects.value.push(res) // res 应该是 Project 对象
     ElMessage.success('项目创建成功')
     createProjectVisible.value = false
-    selectedProjectId.value = res.id // 自动切过去
+    selectedProjectId.value = res.id
   } catch (e: any) {
     ElMessage.error(e.message)
   } finally {
@@ -301,118 +246,75 @@ const submitCreateProject = async () => {
 }
 
 const openCreateAsset = () => {
-  // 默认选中当前项目
   formProjectId.value = selectedProjectId.value || (projects.value.length > 0 ? projects.value[0].id : null)
   formTargets.value = ''
   createVisible.value = true
 }
 
 const submitCreate = async () => {
-  if (!formProjectId.value || !formTargets.value.trim()) {
-    return ElMessage.warning('请补全信息')
-  }
-  
+  if (!formProjectId.value || !formTargets.value.trim()) return ElMessage.warning('请补全信息')
   creating.value = true
-  // 处理多行输入
-  const lines = formTargets.value.split('\n').map(s => s.trim()).filter(s => s)
   
+  const lines = formTargets.value.split('\n').map(s => s.trim()).filter(s => s)
   let successCount = 0
+  let lastId = null
+
   for (const target of lines) {
     try {
       const isCidr = target.includes('/') || /^\d+\.\d+\.\d+\.\d+$/.test(target)
       const type = isCidr ? 'cidr' : 'domain'
-      const newAsset = await createAsset(formProjectId.value, { name: target, type })
-      assetList.value.unshift(newAsset) // 加到列表头
+      // 后端返回 Asset 对象（可能是新创建的，也可能是旧的）
+      const asset = await createAsset(formProjectId.value, { name: target, type })
+      lastId = asset.id
       successCount++
-    } catch (e) {
-      console.error(`Failed to add ${target}`, e)
-    }
+    } catch (e) { console.error(e) }
   }
-  
-  ElMessage.success(`成功添加 ${successCount} 个资产`)
+
   createVisible.value = false
   creating.value = false
+  
+  if (lines.length === 1 && lastId) {
+    ElMessage.success('跳转到资产详情...')
+    router.push({ name: 'Results', params: { assetId: lastId } })
+  } else {
+    ElMessage.success(`处理完成`)
+    fetchData()
+  }
 }
 
 const quickScan = async (row: Asset) => {
   try {
-    // 这里使用默认策略 'full-scan' 或弹出选择
-    // 为了简化交互，我们这里直接触发一个默认扫描，或者您可以扩展为弹窗选择
     await triggerScan({ asset_id: row.id, strategy_name: 'discovery' }) 
-    ElMessage.success(`已对 ${row.name} 发起扫描`)
-    // 跳转任务页查看
+    ElMessage.success(`已发起扫描`)
     router.push('/tasks')
-  } catch (e: any) {
-    ElMessage.error('启动失败: ' + e.message)
-  }
+  } catch (e: any) { ElMessage.error('启动失败: ' + e.message) }
 }
 
 const handleDelete = async (row: Asset) => {
   try {
-    await ElMessageBox.confirm(`确定要删除 ${row.name} 吗？相关数据将一并清除。`, '警告', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      draggable: true
+    await ElMessageBox.confirm(`确定要删除 ${row.name} 吗？`, '警告', {
+      type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消'
     })
-    // 假设 api 有 deleteAsset，暂时先前端移除模拟
-    // await deleteAsset(row.id)
-    assetList.value = assetList.value.filter(a => a.id !== row.id)
+    await deleteAsset(row.id)
     ElMessage.success('已删除')
-  } catch (e) {
-    // cancel
-  }
+    fetchData()
+  } catch (e) {}
 }
 
 const goToResults = (row: Asset) => {
-  // 点击资产，跳转到结果详情页
   router.push({ name: 'Results', params: { assetId: row.id } })
 }
 
-onMounted(() => {
-  initData()
-})
+onMounted(() => { initAll() })
 </script>
 
 <style scoped>
-.fade-in {
-  animation: fadeIn 0.4s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 左侧项目项样式 */
-.project-item {
-  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all
-         text-slate-400 hover:text-slate-100 hover:bg-white/5 border border-transparent select-none group;
-}
-.project-item.active {
-  @apply bg-blue-600/20 text-blue-400 border-blue-500/30 font-bold;
-}
-.count-badge {
-  @apply text-xs bg-slate-800 px-1.5 rounded text-slate-500 group-hover:text-slate-300 transition-colors;
-}
-
-/* 玻璃风格表格覆盖 */
-:deep(.glass-table) {
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: rgba(30, 41, 59, 0.4); /* slate-800/40 */
-  --el-table-border-color: rgba(255,255,255,0.05);
-  --el-table-row-hover-bg-color: rgba(255,255,255,0.05);
-  --el-table-text-color: #94a3b8;
-  --el-table-header-text-color: #e2e8f0;
-}
+.fade-in { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.project-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all text-slate-400 hover:text-slate-100 hover:bg-white/5 border border-transparent select-none group; }
+.project-item.active { @apply bg-blue-600/20 text-blue-400 border-blue-500/30 font-bold; }
+:deep(.glass-table) { --el-table-bg-color: transparent; --el-table-tr-bg-color: transparent; --el-table-header-bg-color: rgba(30, 41, 59, 0.4); --el-table-border-color: rgba(255,255,255,0.05); --el-table-row-hover-bg-color: rgba(255,255,255,0.05); --el-table-text-color: #94a3b8; --el-table-header-text-color: #e2e8f0; }
 :deep(.el-table__inner-wrapper::before) { display: none; }
-
-/* 玻璃输入框覆盖 */
-:deep(.glass-input .el-input__wrapper) {
-  background-color: rgba(15, 23, 42, 0.5) !important;
-  box-shadow: 0 0 0 1px rgba(71, 85, 105, 0.5) !important;
-}
-:deep(.glass-input .el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #3b82f6 !important;
-}
+:deep(.glass-input .el-input__wrapper) { background-color: rgba(15, 23, 42, 0.5) !important; box-shadow: 0 0 0 1px rgba(71, 85, 105, 0.5) !important; }
+:deep(.glass-input .el-input__wrapper.is-focus) { box-shadow: 0 0 0 1px #3b82f6 !important; }
 </style>
