@@ -3,7 +3,7 @@
 # --- 1. 子域名发现 (Subfinder) ---
 - config_name: "Subfinder (默认)"
   agent_type: "subdomain"
-  command_template: "subfinder -d {target} -silent -oJ"
+  command_template: "subfinder -d {target} -silent -oJ -pc /app/configs/subfinder.yaml"
   output_parser_type: "json_lines"
   data_mapping:
     hostname: "host"
