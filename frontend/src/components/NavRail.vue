@@ -2,8 +2,8 @@
   <aside :class="['nav-rail', 'card-glass', { collapsed }]">
     <div class="nav-rail__top">
       <div class="brand" v-if="!collapsed">
-        <p class="brand__eyebrow">SCAN · 控制</p>
-        <h3>Attack Surface</h3>
+      
+        <h3>控制面板</h3>
       </div>
       <el-button circle size="small" @click="$emit('toggle')" aria-label="切换导航宽度">
         <el-icon>
