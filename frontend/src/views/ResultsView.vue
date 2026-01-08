@@ -1,566 +1,298 @@
 <template>
-  <section class="results-view">
-    <header class="results-header card-glass">
-      <div>
-        <p class="text-faint">结果中心</p>
-        <h2 class="hero-title">扫描结果详情</h2>
-        <p class="text-faint">结果按资产归档，域名关注子域名与 Web，IP/CIDR 关注端口与服务。</p>
+  <div class="h-full w-full fade-in flex flex-col gap-4 p-4 md:p-6">
+    
+    <header class="card-glass p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+      <div class="flex gap-5 items-center">
+        <div class="w-16 h-16 rounded-xl flex items-center justify-center text-3xl shadow-lg border border-white/5 shrink-0"
+             :class="assetInfo?.type === 'domain' ? 'bg-blue-600/20 text-blue-400' : 'bg-purple-600/20 text-purple-400'">
+          <el-icon><component :is="assetInfo?.type === 'domain' ? 'Globe' : 'Connection'" /></el-icon>
+        </div>
+        
+        <div>
+          <div class="flex items-center gap-3">
+            <h1 class="text-2xl md:text-3xl font-black text-slate-100 tracking-tight truncate max-w-[300px] md:max-w-md" :title="assetInfo?.name">
+              {{ assetInfo?.name || 'Loading...' }}
+            </h1>
+            <el-tag v-if="assetInfo?.type" size="small" effect="dark" class="uppercase font-bold tracking-wider border-none" 
+                    :color="assetInfo.type === 'domain' ? '#2563eb' : '#9333ea'">
+              {{ assetInfo.type }}
+            </el-tag>
+          </div>
+          <p class="text-slate-500 text-sm mt-1 font-mono flex items-center gap-2">
+            <span>ID: {{ assetId }}</span>
+            <span class="w-1 h-1 rounded-full bg-slate-600"></span>
+            <span>Added: {{ formatDate(assetInfo?.created_at) }}</span>
+          </p>
+        </div>
       </div>
-      <div class="results-actions">
-        <el-input v-model="query" size="small" clearable placeholder="搜索结果" />
-        <el-button size="small" type="primary" :loading="loading" @click="refreshAll">刷新</el-button>
-        <el-button size="small" @click="goTasks">返回任务中心</el-button>
+
+      <div class="flex items-center gap-4 self-end md:self-auto">
+        <div class="hidden lg:flex gap-3 mr-4">
+          <div class="text-center px-4 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+             <div class="text-xl font-bold text-red-400">{{ vulns.length }}</div>
+             <div class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Vulns</div>
+          </div>
+          <div class="text-center px-4 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+             <div class="text-xl font-bold text-blue-400">{{ ports.length }}</div>
+             <div class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Ports</div>
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+           <el-button type="primary" :icon="Lightning" @click="handleRescan" :loading="scanning">
+             立即扫描
+           </el-button>
+           <el-dropdown trigger="click" @command="handleCommand">
+             <el-button plain type="info" :icon="MoreFilled" class="!px-3" />
+             <template #dropdown>
+               <el-dropdown-menu class="glass-dropdown">
+                 <el-dropdown-item command="delete" class="text-red-400">
+                   <el-icon><Delete /></el-icon> 删除资产
+                 </el-dropdown-item>
+               </el-dropdown-menu>
+             </template>
+           </el-dropdown>
+        </div>
       </div>
     </header>
 
-    <section class="results-body">
-      <div class="card-glass results-main">
-        <div class="results-hero">
-          <div>
-            <h3>{{ assetTitle }}</h3>
-            <p class="text-faint">{{ assetSubtitle }}</p>
-          </div>
-          <el-tag size="small" effect="dark">{{ assetTypeLabel }}</el-tag>
-        </div>
+    <div class="card-glass flex-1 rounded-2xl overflow-hidden flex flex-col min-h-0 relative">
+      <el-tabs v-model="activeTab" class="glass-tabs h-full flex flex-col">
+        
+        <el-tab-pane label="漏洞风险" name="vulns" class="h-full flex flex-col">
+           <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
+             <el-table :data="vulns" style="width: 100%" class="glass-table" empty-text="暂无漏洞数据">
+               <el-table-column label="Severity" width="100" sortable prop="severity">
+                 <template #default="{ row }">
+                   <el-tag size="small" effect="dark" :type="getSeverityType(row.severity)" class="border-none font-bold">
+                     {{ row.severity.toUpperCase() }}
+                   </el-tag>
+                 </template>
+               </el-table-column>
+               
+               <el-table-column prop="title" label="Vulnerability Name" min-width="250">
+                  <template #default="{ row }">
+                    <span class="font-bold text-slate-200">{{ row.title }}</span>
+                  </template>
+               </el-table-column>
+               
+               <el-table-column prop="vulnerability_id" label="Template / CVE" width="200">
+                  <template #default="{ row }">
+                    <span v-if="row.vulnerability_id" class="font-mono text-xs text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded border border-blue-500/30">
+                      {{ row.vulnerability_id }}
+                    </span>
+                    <span v-else class="text-slate-600">-</span>
+                  </template>
+               </el-table-column>
+               
+               <el-table-column prop="matched_at" label="Matched URL" min-width="300" show-overflow-tooltip>
+                 <template #default="{ row }">
+                   <a :href="row.matched_at" target="_blank" class="text-slate-400 hover:text-blue-400 hover:underline transition-colors">
+                     {{ row.matched_at }}
+                   </a>
+                 </template>
+               </el-table-column>
+             </el-table>
+           </div>
+        </el-tab-pane>
 
-        <el-alert
-          v-if="assetMissing"
-          type="warning"
-          title="未找到资产"
-          description="请从任务中心进入结果详情，或确认资产 ID 是否正确。"
-          show-icon
-        />
+        <el-tab-pane label="开放端口" name="ports" class="h-full flex flex-col">
+           <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
+             <el-table :data="ports" style="width: 100%" class="glass-table" empty-text="暂无端口数据">
+               <el-table-column prop="port_number" label="Port" width="120" sortable>
+                 <template #default="{ row }">
+                   <span class="text-blue-400 font-mono font-black text-lg">#{{ row.port_number }}</span>
+                 </template>
+               </el-table-column>
+               <el-table-column prop="protocol" label="Protocol" width="100">
+                 <template #default="{ row }">
+                   <span class="uppercase text-xs font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded">{{ row.protocol }}</span>
+                 </template>
+               </el-table-column>
+               <el-table-column prop="service_name" label="Service" width="180">
+                  <template #default="{ row }">
+                    <span class="text-slate-200 font-medium">{{ row.service_name }}</span>
+                  </template>
+               </el-table-column>
+               <el-table-column label="Product / Version">
+                 <template #default="{ row }">
+                   <div class="flex flex-col">
+                     <span class="text-slate-300">{{ row.product || '-' }}</span>
+                     <span v-if="row.version" class="text-slate-500 text-xs">{{ row.version }}</span>
+                   </div>
+                 </template>
+               </el-table-column>
+             </el-table>
+           </div>
+        </el-tab-pane>
 
-        <el-tabs v-if="!assetMissing" v-model="activeTab" class="results-tabs">
-          <el-tab-pane v-if="isDomain" label="子域名" name="hosts">
-            <div class="result-list">
-              <div v-if="filteredHosts.length === 0" class="empty-row">
-                <el-empty description="暂无子域名结果" />
-              </div>
-              <div v-for="host in filteredHosts" :key="host.id" class="result-row">
-                <div>
-                  <strong>{{ host.hostname }}</strong>
-                  <p class="text-faint">{{ host.ips.join(', ') || '暂无解析 IP' }}</p>
-                </div>
-                <div class="row-actions">
-                  <el-tag size="small" effect="plain">{{ host.status }}</el-tag>
-                  <el-button text size="small" @click="goHostDetail(host.id)">详情</el-button>
-                </div>
-              </div>
-              <div v-if="hostHasMore" class="load-more">
-                <el-button size="small" :loading="hostLoading" @click="loadMoreHosts">加载更多</el-button>
-              </div>
-            </div>
-          </el-tab-pane>
-
-          <el-tab-pane v-if="!isDomain" label="端口" name="ports">
-            <div class="result-list">
-              <div v-if="filteredPorts.length === 0" class="empty-row">
-                <el-empty description="暂无端口结果" />
-              </div>
-              <div v-for="port in filteredPorts" :key="port.id" class="result-row">
-                <div>
-                  <strong>{{ port.ip }}:{{ port.port }}</strong>
-                  <p class="text-faint">{{ port.service || '未知服务' }}</p>
-                </div>
-                <div class="row-actions">
-                  <el-tag size="small" effect="plain">端口</el-tag>
-                  <el-button text size="small" @click="goPortDetail(port.id)">详情</el-button>
-                </div>
-              </div>
-              <div v-if="portHasMore" class="load-more">
-                <el-button size="small" :loading="portLoading" @click="loadMorePorts">加载更多</el-button>
-              </div>
-            </div>
-          </el-tab-pane>
-
-          <el-tab-pane label="Web 服务" name="web">
-            <div class="result-list">
-              <div v-if="filteredWeb.length === 0" class="empty-row">
-                <el-empty description="暂无 Web 结果" />
-              </div>
-              <div v-for="service in filteredWeb" :key="service.id" class="result-row">
-                <div>
-                  <strong>{{ service.url }}</strong>
-                  <p class="text-faint">{{ service.title || '未识别标题' }}</p>
-                </div>
-                <div class="row-actions">
-                  <el-tag size="small" effect="plain">{{ service.status || '未知' }}</el-tag>
-                  <el-button text size="small" @click="goWebAnchor(service.url)">打开</el-button>
-                </div>
-              </div>
-              <div v-if="webHasMore" class="load-more">
-                <el-button size="small" :loading="webLoading" @click="loadMoreWeb">加载更多</el-button>
-              </div>
-            </div>
-          </el-tab-pane>
-
-          <el-tab-pane label="漏洞" name="vulns">
-            <div class="result-list">
-              <div v-if="filteredVulns.length === 0" class="empty-row">
-                <el-empty description="暂无漏洞结果" />
-              </div>
-              <div v-for="vuln in filteredVulns" :key="vuln.id" class="result-row">
-                <div>
-                  <strong>{{ vuln.name }}</strong>
-                  <p class="text-faint">{{ vuln.url || '未记录 URL' }}</p>
-                </div>
-                <div class="row-actions">
-                  <el-tag size="small" :type="severityTag(vuln.severity)" effect="dark">
-                    {{ vuln.severity.toUpperCase() }}
-                  </el-tag>
-                  <el-button text size="small" @click="goVulnDetail(vuln.id)">详情</el-button>
-                </div>
-              </div>
-              <div v-if="vulnHasMore" class="load-more">
-                <el-button size="small" :loading="vulnLoading" @click="loadMoreVulns">加载更多</el-button>
-              </div>
-            </div>
-          </el-tab-pane>
-        </el-tabs>
-      </div>
-
-      <aside class="card-glass results-aside">
-        <h3>归档信息</h3>
-        <div class="aside-list">
-          <div class="aside-row">
-            <span class="text-faint">资产 ID</span>
-            <strong>{{ asset?.id ?? '-' }}</strong>
-          </div>
-          <div class="aside-row">
-            <span class="text-faint">资产名称</span>
-            <strong>{{ asset?.name ?? '-' }}</strong>
-          </div>
-          <div class="aside-row">
-            <span class="text-faint">项目</span>
-            <strong>{{ assetProjectLabel }}</strong>
-          </div>
-          <div class="aside-row">
-            <span class="text-faint">创建时间</span>
-            <strong>{{ assetCreatedAt }}</strong>
-          </div>
-        </div>
-
-        <div class="aside-section">
-          <p class="text-faint">结果概览</p>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <p class="text-faint">子域名</p>
-              <strong>{{ hosts.length }}</strong>
-            </div>
-            <div class="stat-card">
-              <p class="text-faint">端口</p>
-              <strong>{{ ports.length }}</strong>
-            </div>
-            <div class="stat-card">
-              <p class="text-faint">Web</p>
-              <strong>{{ webServices.length }}</strong>
-            </div>
-            <div class="stat-card">
-              <p class="text-faint">漏洞</p>
-              <strong>{{ vulns.length }}</strong>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </section>
-  </section>
+      </el-tabs>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import {
-  fetchAssetById,
-  fetchAssetHosts,
-  fetchAssetPorts,
+import { Globe, Connection, Lightning, Delete, MoreFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { 
+  fetchAssetById, 
+  fetchAssetPorts, 
   fetchAssetVulns,
-  fetchAssetWeb,
+  triggerScan,
+  deleteAsset,
   type Asset,
-  type HostSummary,
-  type HTTPServiceSummary,
-  type PortSummary,
-  type VulnerabilitySummary,
+  type Port,
+  type Vulnerability
 } from '@/api/scan'
 
 const route = useRoute()
 const router = useRouter()
-const query = ref('')
-const loading = ref(false)
-const activeTab = ref('hosts')
+const assetId = Number(route.params.assetId)
 
-const asset = ref<Asset | null>(null)
-const hosts = ref<HostSummary[]>([])
-const ports = ref<PortSummary[]>([])
-const webServices = ref<HTTPServiceSummary[]>([])
-const vulns = ref<VulnerabilitySummary[]>([])
-const hostCursor = ref<number | null>(null)
-const hostHasMore = ref(false)
-const portOffset = ref(0)
-const portHasMore = ref(false)
-const webOffset = ref(0)
-const webHasMore = ref(false)
-const vulnOffset = ref(0)
-const vulnHasMore = ref(false)
-const hostLoading = ref(false)
-const portLoading = ref(false)
-const webLoading = ref(false)
-const vulnLoading = ref(false)
+// 状态管理
+const activeTab = ref('vulns')
+const scanning = ref(false)
+const assetInfo = ref<Asset | null>(null)
+const ports = ref<Port[]>([])
+const vulns = ref<Vulnerability[]>([])
 
-const HOSTS_LIMIT = 50
-const PORTS_LIMIT = 50
-const WEB_LIMIT = 50
-const VULNS_LIMIT = 50
-
-const assetId = computed(() => Number(route.params.assetId || 0))
-const assetMissing = computed(() => !asset.value)
-// 域名资产优先展示子域名，IP/CIDR 资产优先展示端口与服务
-const isDomain = computed(() => asset.value?.type === 'domain')
-
-const assetTitle = computed(() => asset.value?.name || '未选择资产')
-const assetSubtitle = computed(() => (asset.value ? `结果归档到项目 #${asset.value.project_id}` : '请从任务中心进入'))
-const assetTypeLabel = computed(() => {
-  if (!asset.value) {
-    return '未指定'
-  }
-  return isDomain.value ? '域名资产' : 'IP/CIDR 资产'
-})
-const assetProjectLabel = computed(() => (asset.value ? `项目 #${asset.value.project_id}` : '-'))
-const assetCreatedAt = computed(() => (asset.value ? new Date(asset.value.created_at).toLocaleString() : '-'))
-
-const filteredHosts = computed(() => {
-  if (!query.value.trim()) {
-    return hosts.value
-  }
-  const keyword = query.value.trim().toLowerCase()
-  return hosts.value.filter((host) => host.hostname.toLowerCase().includes(keyword))
-})
-
-const filteredPorts = computed(() => {
-  if (!query.value.trim()) {
-    return ports.value
-  }
-  const keyword = query.value.trim().toLowerCase()
-  return ports.value.filter((port) => `${port.ip}:${port.port}`.includes(keyword))
-})
-
-const filteredWeb = computed(() => {
-  if (!query.value.trim()) {
-    return webServices.value
-  }
-  const keyword = query.value.trim().toLowerCase()
-  return webServices.value.filter((service) => {
-    return service.url.toLowerCase().includes(keyword) || (service.title || '').toLowerCase().includes(keyword)
-  })
-})
-
-const filteredVulns = computed(() => {
-  if (!query.value.trim()) {
-    return vulns.value
-  }
-  const keyword = query.value.trim().toLowerCase()
-  return vulns.value.filter((vuln) => {
-    return vuln.name.toLowerCase().includes(keyword) || (vuln.url || '').toLowerCase().includes(keyword)
-  })
-})
-
-const severityTag = (severity: VulnerabilitySummary['severity']) => {
-  switch (severity) {
-    case 'critical':
-    case 'high':
-      return 'danger'
-    case 'medium':
-      return 'warning'
-    default:
-      return 'info'
-  }
+// 格式化日期
+const formatDate = (str?: string) => {
+  if (!str) return '-'
+  return new Date(str).toLocaleString()
 }
 
-const loadAsset = async () => {
-  if (!assetId.value) {
-    asset.value = null
-    return
-  }
-  asset.value = await fetchAssetById(assetId.value)
+// 漏洞等级颜色映射
+const getSeverityType = (sev: string) => {
+  const s = sev.toLowerCase()
+  if (['critical', 'high'].includes(s)) return 'danger'
+  if (['medium'].includes(s)) return 'warning'
+  if (['low'].includes(s)) return 'primary'
+  return 'info'
 }
 
-const loadResults = async () => {
-  if (!asset.value) {
-    return
-  }
-  const id = asset.value.id
-  hostCursor.value = null
-  portOffset.value = 0
-  webOffset.value = 0
-  vulnOffset.value = 0
-  const [hostData, portData, webData, vulnData] = await Promise.all([
-    fetchAssetHosts(id, { limit: HOSTS_LIMIT }),
-    fetchAssetPorts(id, { limit: PORTS_LIMIT, skip: 0 }),
-    fetchAssetWeb(id, { limit: WEB_LIMIT, skip: 0 }),
-    fetchAssetVulns(id, { limit: VULNS_LIMIT, skip: 0 }),
-  ])
-  hosts.value = hostData.items
-  hostCursor.value = hostData.next_cursor
-  hostHasMore.value = hostData.has_more
-  ports.value = portData.items
-  portOffset.value = portData.next_offset ?? 0
-  portHasMore.value = portData.has_more
-  webServices.value = webData.items
-  webOffset.value = webData.next_offset ?? 0
-  webHasMore.value = webData.has_more
-  vulns.value = vulnData.items
-  vulnOffset.value = vulnData.next_offset ?? 0
-  vulnHasMore.value = vulnData.has_more
-}
-
-const refreshAll = async () => {
-  loading.value = true
+// 加载所有数据
+const loadData = async () => {
+  if (!assetId) return
   try {
-    await loadAsset()
-    if (!asset.value) {
-      return
+    const [assetRes, portRes, vulnRes] = await Promise.all([
+      fetchAssetById(assetId),
+      fetchAssetPorts(assetId),
+      fetchAssetVulns(assetId)
+    ])
+    
+    // 兼容逻辑：处理 ApiResponse 的解包问题
+    // 如果拦截器已经解包，直接用；否则取 .data
+    // 这里的 assetRes, portRes, vulnRes 可能是 { code: 200, data: ... } 也可能是 data 本身
+    const getVal = (res: any) => res.data !== undefined ? res.data : res
+
+    assetInfo.value = getVal(assetRes)
+    ports.value = getVal(portRes) || []
+    vulns.value = getVal(vulnRes) || []
+
+    // 智能切换：如果无漏洞但有端口，优先展示端口
+    if (vulns.value.length === 0 && ports.value.length > 0) {
+      activeTab.value = 'ports'
     }
-    await loadResults()
-    activeTab.value = isDomain.value ? 'hosts' : 'ports'
-  } catch (error) {
-    asset.value = null
-    ElMessage.error((error as Error).message)
-  } finally {
-    loading.value = false
+  } catch (e) {
+    ElMessage.error('无法加载资产详情，资产可能已被删除')
+    router.push('/assets')
   }
 }
 
-const goTasks = () => {
-  router.push({ name: 'Tasks' })
-}
-
-const goHostDetail = (hostId: number) => {
-  router.push({ name: 'HostDetail', params: { hostId }, query: { assetId: asset.value?.id } })
-}
-
-const goPortDetail = (portId: number) => {
-  router.push({ name: 'PortDetail', params: { portId }, query: { assetId: asset.value?.id } })
-}
-
-const goVulnDetail = (vulnId: number) => {
-  router.push({ name: 'VulnDetail', params: { vulnId }, query: { assetId: asset.value?.id } })
-}
-
-const goWebAnchor = (url: string) => {
-  window.open(url, '_blank')
-}
-
-const loadMoreHosts = async () => {
-  if (!asset.value || !hostHasMore.value || hostLoading.value) {
-    return
-  }
-  hostLoading.value = true
+// 重新扫描逻辑
+const handleRescan = async () => {
+  scanning.value = true
   try {
-    const data = await fetchAssetHosts(asset.value.id, { limit: HOSTS_LIMIT, cursor: hostCursor.value })
-    hosts.value = [...hosts.value, ...data.items]
-    hostCursor.value = data.next_cursor
-    hostHasMore.value = data.has_more
-  } catch (error) {
-    ElMessage.error((error as Error).message)
+    // 使用默认策略 'discovery'
+    await triggerScan({ asset_id: assetId, strategy_name: 'discovery' })
+    ElMessage.success('扫描任务已提交')
+    router.push('/tasks')
+  } catch (e: any) {
+    ElMessage.error(e.message || '启动失败')
   } finally {
-    hostLoading.value = false
+    scanning.value = false
   }
 }
 
-const loadMorePorts = async () => {
-  if (!asset.value || !portHasMore.value || portLoading.value) {
-    return
+// 下拉菜单操作
+const handleCommand = (command: string) => {
+  if (command === 'delete') {
+    handleDelete()
   }
-  portLoading.value = true
+}
+
+// 删除资产
+const handleDelete = async () => {
   try {
-    const data = await fetchAssetPorts(asset.value.id, { limit: PORTS_LIMIT, skip: portOffset.value })
-    ports.value = [...ports.value, ...data.items]
-    portOffset.value = data.next_offset ?? portOffset.value
-    portHasMore.value = data.has_more
-  } catch (error) {
-    ElMessage.error((error as Error).message)
-  } finally {
-    portLoading.value = false
+    await ElMessageBox.confirm(
+      '此操作将永久删除该资产及其所有扫描记录。是否继续？',
+      '警告',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        customClass: 'glass-message-box'
+      }
+    )
+    await deleteAsset(assetId)
+    ElMessage.success('资产已删除')
+    router.push('/assets')
+  } catch (e) {
+    // 取消或出错
   }
 }
-
-const loadMoreWeb = async () => {
-  if (!asset.value || !webHasMore.value || webLoading.value) {
-    return
-  }
-  webLoading.value = true
-  try {
-    const data = await fetchAssetWeb(asset.value.id, { limit: WEB_LIMIT, skip: webOffset.value })
-    webServices.value = [...webServices.value, ...data.items]
-    webOffset.value = data.next_offset ?? webOffset.value
-    webHasMore.value = data.has_more
-  } catch (error) {
-    ElMessage.error((error as Error).message)
-  } finally {
-    webLoading.value = false
-  }
-}
-
-const loadMoreVulns = async () => {
-  if (!asset.value || !vulnHasMore.value || vulnLoading.value) {
-    return
-  }
-  vulnLoading.value = true
-  try {
-    const data = await fetchAssetVulns(asset.value.id, { limit: VULNS_LIMIT, skip: vulnOffset.value })
-    vulns.value = [...vulns.value, ...data.items]
-    vulnOffset.value = data.next_offset ?? vulnOffset.value
-    vulnHasMore.value = data.has_more
-  } catch (error) {
-    ElMessage.error((error as Error).message)
-  } finally {
-    vulnLoading.value = false
-  }
-}
-
-watch(assetId, () => {
-  refreshAll()
-})
 
 onMounted(() => {
-  refreshAll()
+  loadData()
 })
 </script>
 
 <style scoped>
-.results-view {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-  width: 100%;
-}
+/* 动画 */
+.fade-in { animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-.results-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px;
-  border-radius: 16px;
+/* Tabs 样式深度定制 (适配 Glassmorphism) */
+:deep(.glass-tabs .el-tabs__header) {
+  margin: 0;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
-
-.results-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.results-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 16px;
-}
-
-.results-main {
-  padding: 16px;
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.results-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-}
-
-.results-tabs :deep(.el-tabs__nav-wrap::after) {
-  background: rgba(148, 163, 184, 0.12);
-}
-
-.result-list {
-  display: grid;
-  gap: 12px;
-}
-
-.result-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.row-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.load-more {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0;
-}
-
-.empty-row {
-  padding: 12px;
-}
-
-.results-aside {
-  padding: 16px;
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.aside-list {
-  display: grid;
-  gap: 10px;
-}
-
-.aside-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.aside-section {
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  background: rgba(2, 6, 23, 0.5);
-  padding: 12px;
-  display: grid;
-  gap: 12px;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.stat-card {
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  display: grid;
-  gap: 6px;
-}
-
-.text-faint {
+:deep(.glass-tabs .el-tabs__nav-wrap::after) { display: none; }
+:deep(.glass-tabs .el-tabs__item) {
   color: #94a3b8;
+  height: 56px;
+  line-height: 56px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+:deep(.glass-tabs .el-tabs__item:hover) { color: #e2e8f0; }
+:deep(.glass-tabs .el-tabs__item.is-active) {
+  color: #38bdf8;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+:deep(.glass-tabs .el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-@media (max-width: 1100px) {
-  .results-body {
-    grid-template-columns: 1fr;
-  }
+/* 表格样式深度定制 */
+:deep(.glass-table) {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(30, 41, 59, 0.6);
+  --el-table-border-color: rgba(255, 255, 255, 0.05);
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.05);
+  --el-table-text-color: #cbd5e1;
+  --el-table-header-text-color: #e2e8f0;
 }
+:deep(.el-table__inner-wrapper::before) { display: none; }
+:deep(.el-table__empty-text) { color: #64748b; }
 </style>
