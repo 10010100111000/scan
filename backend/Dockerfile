@@ -41,7 +41,7 @@ RUN set -eux; \
     if [ "$ARCH" = "amd64" ]; then PD_ARCH="amd64"; else PD_ARCH="arm64"; fi; \
     echo "Using arch: $PD_ARCH"; \
     \
-    wget https://gh-proxy.org/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip; \
+    wget https://gh-proxy.org/https://github.com/projectdiscovery/subfinder/releases/download/v2.11.0/subfinder_2.11.0_linux_${PD_ARCH}.zip; \
     unzip -jq subfinder_2.11.0_linux_${PD_ARCH}.zip subfinder; \
     mv subfinder /usr/local/bin/; \
     \
