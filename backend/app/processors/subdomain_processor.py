@@ -1,6 +1,8 @@
 from sqlalchemy.future import select
+from sqlalchemy import update
 from app.data import models
 from .base_processor import BaseProcessor
+import datetime
 
 class SubdomainProcessor(BaseProcessor):
     """
@@ -16,7 +18,7 @@ class SubdomainProcessor(BaseProcessor):
         hostname = hostname_raw.lower().rstrip(".")
         record_type = res.get("record_type") or res.get("type") or "A"
         
-        # 处理 IP 列表 (Subfinder 可能返回 ip 字符串或 ips 列表)
+        # 处理 IP 列表
         ip_values = set()
         ip_single = res.get("ip")
         if ip_single:
@@ -31,21 +33,36 @@ class SubdomainProcessor(BaseProcessor):
 
         count_new = 0
 
-        # 2. Host 入库 (去重)
+        # ==========================================================
+        # 2. Host 入库 (核心修复: 存在则更新归属)
+        # ==========================================================
         stmt = select(models.Host).where(models.Host.hostname == hostname)
         existing = await self.db.execute(stmt)
         host_obj = existing.scalars().first()
         
         if not host_obj:
+            # 不存在：创建新记录
             host_obj = models.Host(
                 hostname=hostname,
                 project_id=self.project_id,
                 root_asset_id=self.root_asset_id,
-                status="discovered"
+                status="discovered",
+                created_at=datetime.datetime.utcnow()
             )
             self.db.add(host_obj)
-            await self.db.flush() # 立即获取 ID
+            await self.db.flush() # 获取 ID
             count_new += 1
+        else:
+            # [修复] 已存在：更新 root_asset_id 和 project_id，确保当前资产能看到它
+            # 注意：这会将子域名“移动”到当前最新扫描的资产下
+            if host_obj.root_asset_id != self.root_asset_id:
+                host_obj.root_asset_id = self.root_asset_id
+                host_obj.project_id = self.project_id
+                # 可选：更新状态或时间
+                # host_obj.updated_at = datetime.datetime.utcnow()
+                self.db.add(host_obj)
+                # 虽然不是"新增"，但这是"更新关联"，对用户来说数据出现了
+                # 我们这里不加 count_new，因为从数据库角度它不是新行，但 UI 会有了
 
         # 3. IP 入库与 DNS 关联
         for ip_val in ip_values:
@@ -64,6 +81,11 @@ class SubdomainProcessor(BaseProcessor):
                 self.db.add(ip_obj)
                 await self.db.flush()
                 count_new += 1
+            else:
+                # 同样，如果 IP 存在，也更新归属（可选，视需求而定）
+                if ip_obj.root_asset_id != self.root_asset_id:
+                    ip_obj.root_asset_id = self.root_asset_id
+                    self.db.add(ip_obj)
 
             # 建立 DNS 关联 (Host <-> IP)
             stmt_dns = select(models.DNSRecord).where(
