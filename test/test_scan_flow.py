@@ -107,7 +107,7 @@ def run_test():
                 time.sleep(2)
                 
             print_step("测试结束")
-            print(f"请前往前端查看结果: http://localhost:5173/results/{asset_id}")
+            print(f"请前往前端查看结果: http://localhost:8000/results/{asset_id}")
             print(f"预期结果：应发现 testphp.vulnweb.com 等子域名。")
             
         except KeyboardInterrupt:
