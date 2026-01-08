@@ -24,27 +24,43 @@
         </div>
         
         <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-          <div class="project-item" :class="{ 'active': selectedProjectId === null }" @click="selectedProjectId = null">
-            <el-icon><Menu /></el-icon><span class="flex-1">全部资产</span>
+          <div 
+            class="project-item group" 
+            :class="{ 'active': selectedProjectId === null }" 
+            @click="selectedProjectId = null"
+          >
+            <el-icon><Menu /></el-icon>
+            <span class="flex-1">全部资产</span>
           </div>
-          <div v-for="p in projects" :key="p.id" class="project-item" :class="{ 'active': selectedProjectId === p.id }" @click="selectedProjectId = p.id">
-            <el-icon><Folder /></el-icon><span class="flex-1 truncate">{{ p.name }}</span>
+
+          <div 
+            v-for="p in projects" :key="p.id" 
+            class="project-item group" 
+            :class="{ 'active': selectedProjectId === p.id }" 
+            @click="selectedProjectId = p.id"
+          >
+            <el-icon><Folder /></el-icon>
+            <span class="flex-1 truncate">{{ p.name }}</span>
+            <el-icon class="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"><ArrowRight /></el-icon>
           </div>
         </div>
       </div>
     </aside>
 
     <main class="flex-1 flex flex-col gap-4 min-w-0">
+      
       <div class="card-glass p-4 rounded-2xl flex justify-between items-center">
         <div class="flex items-center gap-3">
-          <div class="text-lg font-bold text-slate-200">{{ currentProjectName }}</div>
+          <div class="text-lg font-bold text-slate-200">
+             {{ currentProjectName }}
+          </div>
           <el-divider direction="vertical" class="border-slate-600" />
           <el-input 
             v-model="searchQuery" 
-            placeholder="搜索资产..." 
-            :prefix-icon="Search" 
-            class="w-64 glass-input" 
-            clearable 
+            placeholder="搜索资产名称..." 
+            :prefix-icon="Search"
+            class="w-64 glass-input"
+            clearable
             @change="fetchData" 
           />
           <el-radio-group v-model="typeFilter" size="small" class="glass-radio" @change="fetchData">
@@ -53,6 +69,7 @@
             <el-radio-button label="cidr">CIDRs</el-radio-button>
           </el-radio-group>
         </div>
+
         <el-button type="primary" color="#3b82f6" class="shadow-lg shadow-blue-500/20" @click="openCreateAsset">
           <el-icon class="mr-1"><Plus /></el-icon> 添加资产
         </el-button>
@@ -111,26 +128,39 @@
             </template>
           </el-table-column>
 
-          <template #empty><el-empty description="暂无资产" :image-size="100" /></template>
+          <template #empty>
+            <el-empty description="暂无资产" :image-size="100" />
+          </template>
         </el-table>
       </div>
     </main>
 
-    <el-dialog v-model="createVisible" title="添加/查找资产" width="400px" class="glass-dialog" align-center>
+    <el-dialog v-model="createVisible" title="添加或查找资产" width="400px" class="glass-dialog" align-center>
+      <div class="mb-4 bg-blue-500/10 border border-blue-500/20 p-3 rounded text-xs text-blue-300">
+        <el-icon class="mr-1 relative top-0.5"><InfoFilled /></el-icon>
+        如果资产已存在（无论在哪个项目），将直接跳转到详情页。
+      </div>
       <el-form label-position="top">
-        <el-form-item label="所属项目">
+        <el-form-item label="默认项目 (新建时使用)">
            <el-select v-model="formProjectId" placeholder="选择项目" class="w-full">
               <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
            </el-select>
         </el-form-item>
         <el-form-item label="资产目标">
-          <el-input v-model="formTargets" type="textarea" :rows="4" placeholder="example.com&#10;192.168.1.0/24" />
+          <el-input 
+            v-model="formTargets" 
+            type="textarea" 
+            :rows="4" 
+            placeholder="example.com&#10;192.168.1.0/24" 
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createVisible = false">取消</el-button>
-          <el-button type="primary" :loading="creating" @click="submitCreate">确定</el-button>
+          <el-button type="primary" :loading="creating" @click="submitCreate">
+            确定
+          </el-button>
         </span>
       </template>
     </el-dialog>
@@ -141,13 +171,14 @@
           <el-button type="primary" class="w-full" @click="submitCreateProject" :loading="projectCreating">创建</el-button>
        </template>
     </el-dialog>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Menu, Folder, Plus, Search, Globe, Connection, Lightning, Delete } from '@element-plus/icons-vue'
+import { Menu, Folder, Plus, Search, Globe, Connection, ArrowRight, Lightning, Delete, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   fetchProjects, 
@@ -177,11 +208,13 @@ const createProjectVisible = ref(false)
 const projectCreating = ref(false)
 const newProjectName = ref('')
 
-const globalStats = computed(() => ({
-  total: assetList.value.length,
-  domains: assetList.value.filter(a => a.type === 'domain').length,
-  cidrs: assetList.value.filter(a => a.type === 'cidr').length
-}))
+const globalStats = computed(() => {
+  return {
+    total: assetList.value.length,
+    domains: assetList.value.filter(a => a.type === 'domain').length,
+    cidrs: assetList.value.filter(a => a.type === 'cidr').length
+  }
+})
 
 const currentProjectName = computed(() => {
   if (selectedProjectId.value === null) return 'All Assets'
@@ -189,7 +222,6 @@ const currentProjectName = computed(() => {
   return p ? p.name : 'Unknown Project'
 })
 
-// [Core] 获取数据：后端支持分页和筛选
 const fetchData = async () => {
   loading.value = true
   try {
@@ -199,8 +231,6 @@ const fetchData = async () => {
     if (searchQuery.value) params.search = searchQuery.value
 
     const res = await fetchAssets(params)
-    // 兼容处理：如果拦截器解包了 ApiResponse，res 就是数组
-    // 如果没有解包，res.data 才是数组
     const list = Array.isArray(res) ? res : (res['data'] || [])
     assetList.value = list
   } catch (e) {
@@ -210,7 +240,9 @@ const fetchData = async () => {
   }
 }
 
-watch([selectedProjectId, typeFilter], () => { fetchData() })
+watch([selectedProjectId, typeFilter], () => {
+  fetchData()
+})
 
 const initAll = async () => {
   try {
@@ -234,12 +266,12 @@ const submitCreateProject = async () => {
   projectCreating.value = true
   try {
     const res = await createProject({ name: newProjectName.value })
-    projects.value.push(res) // res 应该是 Project 对象
+    projects.value.push(res) 
     ElMessage.success('项目创建成功')
     createProjectVisible.value = false
     selectedProjectId.value = res.id
   } catch (e: any) {
-    ElMessage.error(e.message)
+    ElMessage.error(e.message || '创建失败')
   } finally {
     projectCreating.value = false
   }
@@ -263,7 +295,6 @@ const submitCreate = async () => {
     try {
       const isCidr = target.includes('/') || /^\d+\.\d+\.\d+\.\d+$/.test(target)
       const type = isCidr ? 'cidr' : 'domain'
-      // 后端返回 Asset 对象（可能是新创建的，也可能是旧的）
       const asset = await createAsset(formProjectId.value, { name: target, type })
       lastId = asset.id
       successCount++
@@ -274,10 +305,10 @@ const submitCreate = async () => {
   creating.value = false
   
   if (lines.length === 1 && lastId) {
-    ElMessage.success('跳转到资产详情...')
+    ElMessage.success('正在跳转...')
     router.push({ name: 'Results', params: { assetId: lastId } })
   } else {
-    ElMessage.success(`处理完成`)
+    ElMessage.success(`添加/更新完成`)
     fetchData()
   }
 }
@@ -311,8 +342,18 @@ onMounted(() => { initAll() })
 <style scoped>
 .fade-in { animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-.project-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all text-slate-400 hover:text-slate-100 hover:bg-white/5 border border-transparent select-none group; }
-.project-item.active { @apply bg-blue-600/20 text-blue-400 border-blue-500/30 font-bold; }
+
+/* [修正] .project-item 不再在 @apply 中包含 'group'。
+  'group' 类已直接移至 HTML template 中。
+*/
+.project-item {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all
+         text-slate-400 hover:text-slate-100 hover:bg-white/5 border border-transparent select-none;
+}
+.project-item.active {
+  @apply bg-blue-600/20 text-blue-400 border-blue-500/30 font-bold;
+}
+
 :deep(.glass-table) { --el-table-bg-color: transparent; --el-table-tr-bg-color: transparent; --el-table-header-bg-color: rgba(30, 41, 59, 0.4); --el-table-border-color: rgba(255,255,255,0.05); --el-table-row-hover-bg-color: rgba(255,255,255,0.05); --el-table-text-color: #94a3b8; --el-table-header-text-color: #e2e8f0; }
 :deep(.el-table__inner-wrapper::before) { display: none; }
 :deep(.glass-input .el-input__wrapper) { background-color: rgba(15, 23, 42, 0.5) !important; box-shadow: 0 0 0 1px rgba(71, 85, 105, 0.5) !important; }
