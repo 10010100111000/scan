@@ -68,10 +68,10 @@
           </template>
           
           <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
-             <el-table :data="hosts" style="width: 100%" class="glass-table" :row-class-name="tableRowClassName">
+             <el-table :data="hosts" style="width: 100%" class="glass-table" :row-class-name="tableRowClassName" empty-text="暂无子域名数据">
                <el-table-column prop="hostname" label="Hostname" min-width="200">
                  <template #default="{ row }">
-                   <span class="font-mono text-slate-200 font-medium">{{ row.hostname }}</span>
+                   <span class="font-mono text-slate-200 font-medium select-all">{{ row.hostname }}</span>
                  </template>
                </el-table-column>
                
@@ -79,7 +79,7 @@
                  <template #default="{ row }">
                    <div v-if="row.ips && row.ips.length" class="flex flex-wrap gap-1">
                      <span v-for="ip in row.ips" :key="ip" 
-                           class="text-xs bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
+                           class="text-xs bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 select-all">
                        {{ ip }}
                      </span>
                    </div>
@@ -195,7 +195,7 @@
             <span class="flex items-center gap-2"><el-icon><Connection /></el-icon> 端口 ({{ ports.length }})</span>
           </template>
            <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
-             <el-table :data="ports" style="width: 100%" class="glass-table">
+             <el-table :data="ports" style="width: 100%" class="glass-table" empty-text="暂无端口数据">
                <el-table-column prop="port" label="Port" width="120" sortable>
                  <template #default="{ row }">
                    <span class="text-blue-400 font-mono font-black text-lg">#{{ row.port }}</span>
@@ -217,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   Globe, Connection, Lightning, Delete, MoreFilled, 
@@ -228,8 +228,8 @@ import {
   fetchAssetById, 
   fetchAssetPorts, 
   fetchAssetVulns,
-  fetchAssetHosts,    // 需在 api/scan.ts 定义
-  fetchAssetWeb,      // 需在 api/scan.ts 定义
+  fetchAssetHosts,
+  fetchAssetWeb,
   triggerScan,
   deleteAsset,
   type Asset,
@@ -242,8 +242,7 @@ const route = useRoute()
 const router = useRouter()
 const assetId = Number(route.params.assetId)
 
-// 状态管理
-const activeTab = ref('hosts') // 默认看子域名
+const activeTab = ref('hosts')
 const scanning = ref(false)
 const assetInfo = ref<Asset | null>(null)
 const hosts = ref<Host[]>([])
@@ -251,25 +250,50 @@ const webServices = ref<WebService[]>([])
 const ports = ref<Port[]>([])
 const vulns = ref<any[]>([])
 
-// 格式化日期
-const formatDate = (str?: string) => {
-  if (!str) return '-'
-  return new Date(str).toLocaleDateString()
+// --- 关键修复：数据加载逻辑 ---
+const loadData = async () => {
+  if (!assetId) return
+  try {
+    // 1. 发起请求
+    const [assetRes, hostRes, webRes, portRes, vulnRes] = await Promise.all([
+      fetchAssetById(assetId),
+      fetchAssetHosts(assetId, { limit: 500 }),
+      fetchAssetWeb(assetId, { limit: 500 }),
+      fetchAssetPorts(assetId, { limit: 500 }),
+      fetchAssetVulns(assetId, { limit: 500 })
+    ])
+    
+    // 2. 正确赋值 (后端返回的是 { items: [...], has_more: ... }，需要取 .items)
+    // request 拦截器已经去掉了最外层的 code/message 包装，所以这里直接拿到 payload
+    
+    assetInfo.value = assetRes // 单个对象，没有 items
+    
+    // 列表数据，必须取 items，否则 element-plus table 会报错或不显示
+    hosts.value = hostRes.items || []       
+    webServices.value = webRes.items || []
+    ports.value = portRes.items || []
+    vulns.value = vulnRes.items || []
+
+    // 智能切换 Tab
+    if (vulns.value.length > 0) activeTab.value = 'vulns'
+    else if (webServices.value.length > 0) activeTab.value = 'web'
+    else activeTab.value = 'hosts'
+
+  } catch (e: any) {
+    console.error(e)
+    ElMessage.error(e.message || '加载资产数据失败')
+  }
 }
 
-// 状态码颜色逻辑
+// 辅助函数
+const formatDate = (str?: string) => str ? new Date(str).toLocaleDateString() : '-'
+const openLink = (url: string) => window.open(url, '_blank')
+
 const getStatusCodeColor = (code: number, type: 'bg' | 'badge') => {
   if (!code) return type === 'bg' ? 'bg-slate-700' : 'bg-slate-700 text-slate-400'
-  
-  if (code >= 200 && code < 300) {
-    return type === 'bg' ? 'bg-emerald-500' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-  }
-  if (code >= 300 && code < 400) {
-    return type === 'bg' ? 'bg-blue-500' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-  }
-  if (code >= 400 && code < 500) {
-    return type === 'bg' ? 'bg-orange-500' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-  }
+  if (code >= 200 && code < 300) return type === 'bg' ? 'bg-emerald-500' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+  if (code >= 300 && code < 400) return type === 'bg' ? 'bg-blue-500' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+  if (code >= 400 && code < 500) return type === 'bg' ? 'bg-orange-500' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
   return type === 'bg' ? 'bg-red-500' : 'bg-red-500/20 text-red-400 border border-red-500/30'
 }
 
@@ -280,46 +304,6 @@ const getSeverityType = (sev: string) => {
   if (['medium'].includes(s)) return 'warning'
   if (['low'].includes(s)) return 'primary'
   return 'info'
-}
-
-// 辅助功能
-const openLink = (url: string) => {
-  window.open(url, '_blank')
-}
-
-// 加载数据
-const loadData = async () => {
-  if (!assetId) return
-  try {
-    // 并行请求所有数据
-    // 注意：后端 results.py 的分页默认是 limit=100。
-    // 这里为了演示效果，我们假设 params: { limit: 1000 } 来获取大部分数据
-    const [assetRes, hostRes, webRes, portRes, vulnRes] = await Promise.all([
-      fetchAssetById(assetId),
-      fetchAssetHosts(assetId, { limit: 500 }),
-      fetchAssetWeb(assetId, { limit: 500 }),
-      fetchAssetPorts(assetId, { limit: 500 }),
-      fetchAssetVulns(assetId, { limit: 500 })
-    ])
-    
-    // API 响应解包辅助函数
-    const getData = (res: any) => res.data?.items || res.data || res
-
-    assetInfo.value = assetRes.data || assetRes
-    hosts.value = getData(hostRes) || []
-    webServices.value = getData(webRes) || []
-    ports.value = getData(portRes) || []
-    vulns.value = getData(vulnRes) || []
-
-    // 智能 Tab 切换逻辑
-    if (vulns.value.length > 0) activeTab.value = 'vulns'
-    else if (webServices.value.length > 0) activeTab.value = 'web'
-    else activeTab.value = 'hosts'
-
-  } catch (e) {
-    console.error(e)
-    ElMessage.error('加载资产数据失败')
-  }
 }
 
 const handleRescan = async () => {
@@ -336,24 +320,18 @@ const handleRescan = async () => {
 }
 
 const handleCommand = (command: string) => {
-  if (command === 'delete') handleDelete()
+  if (command === 'delete') {
+    ElMessageBox.confirm('确定要删除该资产吗？', '警告', { type: 'warning', customClass: 'glass-message-box' })
+      .then(async () => {
+        await deleteAsset(assetId)
+        ElMessage.success('已删除')
+        router.push('/assets')
+      })
+      .catch(() => {})
+  }
 }
 
-const handleDelete = async () => {
-  try {
-    await ElMessageBox.confirm('确定要删除该资产吗？', '警告', {
-      type: 'warning',
-      customClass: 'glass-message-box'
-    })
-    await deleteAsset(assetId)
-    ElMessage.success('已删除')
-    router.push('/assets')
-  } catch {}
-}
-
-const tableRowClassName = ({ rowIndex }: { rowIndex: number }) => {
-  return rowIndex % 2 === 0 ? 'bg-transparent' : 'bg-slate-800/20'
-}
+const tableRowClassName = ({ rowIndex }: { rowIndex: number }) => rowIndex % 2 === 0 ? 'bg-transparent' : 'bg-slate-800/20'
 
 onMounted(() => {
   loadData()
@@ -364,12 +342,11 @@ onMounted(() => {
 .fade-in { animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-/* 统计小徽章 */
 .stat-badge {
   @apply px-3 py-1 rounded-lg border flex flex-col items-center justify-center min-w-[60px] cursor-default select-none;
 }
 
-/* Tabs 深度定制 */
+/* Tabs 定制 */
 :deep(.glass-tabs .el-tabs__header) {
   margin: 0;
   background: rgba(15, 23, 42, 0.6);
