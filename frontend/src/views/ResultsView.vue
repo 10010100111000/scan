@@ -1,386 +1,203 @@
 <template>
-  <div class="h-full w-full fade-in flex flex-col gap-4 p-4 md:p-6 overflow-hidden">
+  <div class="h-full w-full bg-[#0f172a] flex flex-col overflow-hidden relative">
     
-    <header class="card-glass p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
-      <div class="flex gap-5 items-center">
-        <div class="w-16 h-16 rounded-xl flex items-center justify-center text-3xl shadow-lg border border-white/5 shrink-0"
-             :class="assetInfo?.type === 'domain' ? 'bg-blue-600/20 text-blue-400' : 'bg-purple-600/20 text-purple-400'">
-          <el-icon><component :is="assetInfo?.type === 'domain' ? 'Globe' : 'Connection'" /></el-icon>
+    <header class="shrink-0 h-16 border-b border-white/5 flex items-center px-4 justify-between bg-[#0f172a]/50 backdrop-blur-md z-20">
+      <div class="flex items-center gap-4 flex-1">
+        <div class="flex items-center gap-2 text-sm font-medium text-slate-400">
+          <router-link to="/assets" class="hover:text-white transition-colors">Assets</router-link>
+          <el-icon><ArrowRight /></el-icon>
+          <span class="text-slate-100 flex items-center gap-2">
+            <el-icon v-if="assetInfo?.type === 'domain'" class="text-blue-400"><Globe /></el-icon>
+            {{ assetInfo?.name }}
+          </span>
         </div>
-        
-        <div>
-          <div class="flex items-center gap-3">
-            <h1 class="text-2xl md:text-3xl font-black text-slate-100 tracking-tight truncate max-w-[300px] md:max-w-md" :title="assetInfo?.name">
-              {{ assetInfo?.name || 'Loading...' }}
-            </h1>
-            <el-tag v-if="assetInfo?.type" size="small" effect="dark" class="uppercase font-bold tracking-wider border-none" 
-                    :color="assetInfo.type === 'domain' ? '#2563eb' : '#9333ea'">
-              {{ assetInfo.type }}
-            </el-tag>
-          </div>
-          <p class="text-slate-500 text-sm mt-1 font-mono flex items-center gap-2">
-            <span>ID: {{ assetId }}</span>
-            <span class="w-1 h-1 rounded-full bg-slate-600"></span>
-            <span>Created: {{ formatDate(assetInfo?.created_at) }}</span>
-          </p>
+
+        <div class="h-4 w-px bg-white/10 mx-2"></div>
+
+        <div class="flex-1 max-w-xl relative group">
+          <el-icon class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400"><Search /></el-icon>
+          <input 
+            type="text" 
+            v-model="searchQuery"
+            placeholder="Filter results (e.g. status=200)..." 
+            class="w-full bg-[#1e293b]/50 border border-white/10 rounded-md py-1.5 pl-9 pr-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 focus:bg-[#1e293b] transition-all placeholder:text-slate-600"
+          />
         </div>
       </div>
 
-      <div class="flex items-center gap-4 self-end md:self-auto">
-        <div class="hidden lg:flex gap-2 mr-2">
-           <div class="stat-badge bg-blue-500/10 text-blue-400 border-blue-500/20">
-             <span class="font-bold">{{ hosts.length }}</span> <span class="text-[10px] opacity-70">SUBS</span>
-           </div>
-           <div class="stat-badge bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-             <span class="font-bold">{{ webServices.length }}</span> <span class="text-[10px] opacity-70">WEB</span>
-           </div>
-           <div class="stat-badge bg-red-500/10 text-red-400 border-red-500/20">
-             <span class="font-bold">{{ vulns.length }}</span> <span class="text-[10px] opacity-70">VULNS</span>
-           </div>
-        </div>
-
-        <el-divider direction="vertical" class="border-slate-700 h-8 mx-0" />
-
-        <div class="flex gap-2">
-           <el-button type="primary" :icon="Lightning" @click="handleRescan" :loading="scanning">
-             深度扫描
-           </el-button>
-           <el-dropdown trigger="click" @command="handleCommand">
-             <el-button plain type="info" :icon="MoreFilled" class="!px-3" />
-             <template #dropdown>
-               <el-dropdown-menu class="glass-dropdown">
-                 <el-dropdown-item command="delete" class="text-red-400">
-                   <el-icon><Delete /></el-icon> 删除资产
-                 </el-dropdown-item>
-               </el-dropdown-menu>
-             </template>
-           </el-dropdown>
-        </div>
+      <div class="flex items-center gap-3">
+         <button 
+           @click="handleRescan"
+           class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded shadow-lg shadow-blue-900/20 transition-all border border-blue-400/20"
+         >
+           <el-icon :class="{ 'is-loading': scanning }"><Refresh /></el-icon>
+           {{ scanning ? 'Scanning...' : 'Rescan' }}
+         </button>
       </div>
     </header>
 
-    <div class="card-glass flex-1 rounded-2xl overflow-hidden flex flex-col min-h-0 relative">
-      <el-tabs v-model="activeTab" class="glass-tabs h-full flex flex-col">
+    <div class="flex-1 flex overflow-hidden">
+      
+      <nav class="w-16 flex flex-col items-center py-4 gap-4 border-r border-white/5 bg-[#0f172a] shrink-0">
+         <button 
+           v-for="tab in tabs" 
+           :key="tab.id"
+           @click="activeTab = tab.id"
+           class="w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all relative group"
+           :class="activeTab === tab.id ? 'bg-blue-500/20 text-blue-400' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'"
+         >
+           <el-icon><component :is="tab.icon" /></el-icon>
+           
+           <span v-if="tab.count" class="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-0.5 items-center justify-center rounded-full bg-[#0f172a] text-[9px] font-bold text-slate-400 border border-white/10 z-10">
+             {{ tab.count > 99 ? '99+' : tab.count }}
+           </span>
+           
+           <div class="absolute left-full ml-3 px-2 py-1 bg-slate-800 border border-white/10 rounded text-xs text-white opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity shadow-xl">
+             {{ tab.label }}
+           </div>
+         </button>
+      </nav>
+
+      <main class="flex-1 overflow-y-auto custom-scrollbar bg-[#0f172a] p-0 relative">
         
-        <el-tab-pane name="hosts" class="h-full flex flex-col">
-          <template #label>
-            <span class="flex items-center gap-2"><el-icon><Files /></el-icon> 子域名 ({{ hosts.length }})</span>
-          </template>
-          
-          <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
-             <el-table :data="hosts" style="width: 100%" class="glass-table" :row-class-name="tableRowClassName" empty-text="暂无子域名数据">
-               <el-table-column prop="hostname" label="Hostname" min-width="200">
-                 <template #default="{ row }">
-                   <span class="font-mono text-slate-200 font-medium select-all">{{ row.hostname }}</span>
-                 </template>
-               </el-table-column>
-               
-               <el-table-column label="IP Resolution" min-width="180">
-                 <template #default="{ row }">
-                   <div v-if="row.ips && row.ips.length" class="flex flex-wrap gap-1">
-                     <span v-for="ip in row.ips" :key="ip" 
-                           class="text-xs bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 select-all">
-                       {{ ip }}
-                     </span>
-                   </div>
-                   <span v-else class="text-slate-600 italic text-xs">Unresolved</span>
-                 </template>
-               </el-table-column>
-
-               <el-table-column prop="status" label="Status" width="120">
-                  <template #default="{ row }">
-                    <div class="flex items-center gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full" 
-                            :class="row.status === 'confirmed' ? 'bg-emerald-500' : 'bg-slate-500'"></span>
-                      <span class="capitalize text-slate-400 text-xs">{{ row.status }}</span>
-                    </div>
-                  </template>
-               </el-table-column>
-             </el-table>
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane name="web" class="h-full flex flex-col">
-          <template #label>
-            <span class="flex items-center gap-2"><el-icon><Monitor /></el-icon> Web服务 ({{ webServices.length }})</span>
-          </template>
-
-          <div class="flex-1 overflow-y-auto custom-scrollbar p-4 bg-slate-900/20">
-            <div class="grid grid-cols-1 gap-3">
-              <div v-for="web in webServices" :key="web.id" 
-                   class="group bg-slate-800/40 hover:bg-slate-800/60 border border-slate-700/50 hover:border-slate-600 rounded-lg p-4 transition-all flex flex-col md:flex-row gap-4">
-                
-                <div class="hidden md:block w-1 rounded-full self-stretch" 
-                     :class="getStatusCodeColor(web.status, 'bg')"></div>
-
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-start justify-between gap-4 mb-2">
-                    <div class="flex items-center gap-3 min-w-0">
-                       <span class="px-2 py-0.5 rounded text-xs font-black font-mono"
-                             :class="getStatusCodeColor(web.status, 'badge')">
-                         {{ web.status || '---' }}
-                       </span>
-                       <a :href="web.url" target="_blank" class="text-lg font-bold text-slate-200 hover:text-blue-400 truncate hover:underline font-mono">
-                         {{ web.url }}
-                       </a>
-                    </div>
-                  </div>
-
-                  <h3 class="text-slate-400 text-sm mb-3 truncate" :title="web.title">
-                    {{ web.title || 'No Title' }}
-                  </h3>
-
-                  <div class="flex flex-wrap gap-2 items-center">
-                    <el-tooltip content="Web Server / Technology" placement="top" :show-after="500">
-                       <el-icon class="text-slate-500"><Cpu /></el-icon>
-                    </el-tooltip>
-                    
-                    <template v-if="web.tech && Object.keys(web.tech || {}).length">
-                       <span v-for="(ver, name) in web.tech" :key="name" 
-                             class="tech-tag text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
-                         {{ name }} <span v-if="ver" class="text-slate-500 ml-1">{{ ver }}</span>
-                       </span>
-                    </template>
-                    <span v-else class="text-xs text-slate-600 italic">Unknown Tech</span>
-                  </div>
-                </div>
-
-                <div class="flex flex-col gap-2 justify-center border-l border-slate-700/50 pl-4 ml-2">
-                  <el-button size="small" text bg icon="Link" @click="openLink(web.url)">Visit</el-button>
-                </div>
-              </div>
-              
-              <div v-if="webServices.length === 0" class="text-center py-10 text-slate-500">
-                暂无 Web 服务数据，请确保已运行 httpx 探活任务
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane name="vulns" class="h-full flex flex-col">
-           <template #label>
-            <span class="flex items-center gap-2">
-              <el-icon :class="vulns.length ? 'text-red-400' : ''"><Warning /></el-icon> 
-              漏洞风险 ({{ vulns.length }})
-            </span>
-          </template>
-           <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
-             <el-table :data="vulns" style="width: 100%" class="glass-table" empty-text="暂无漏洞数据">
-               <el-table-column label="Severity" width="100" sortable prop="severity">
-                 <template #default="{ row }">
-                   <el-tag size="small" effect="dark" :type="getSeverityType(row.severity)" class="border-none font-bold">
-                     {{ row.severity?.toUpperCase() }}
-                   </el-tag>
-                 </template>
-               </el-table-column>
-               
-               <el-table-column prop="name" label="Vulnerability" min-width="250">
-                  <template #default="{ row }">
-                    <span class="font-bold text-slate-200">{{ row.name }}</span>
-                    <div class="text-xs text-slate-500 mt-0.5">{{ row.template_id }}</div>
-                  </template>
-               </el-table-column>
-               
-               <el-table-column prop="url" label="Location" min-width="300" show-overflow-tooltip>
-                 <template #default="{ row }">
-                   <span class="text-slate-400 font-mono text-xs">{{ row.url }}</span>
-                 </template>
-               </el-table-column>
-             </el-table>
+        <div v-if="activeTab === 'web'" class="flex flex-col min-w-[800px]">
+           <div class="sticky top-0 z-10 grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/5 bg-[#0f172a]/95 backdrop-blur text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <div class="col-span-5">Target</div>
+              <div class="col-span-3">Tech Stack</div>
+              <div class="col-span-2">Status</div>
+              <div class="col-span-2 text-right">Action</div>
            </div>
-        </el-tab-pane>
 
-        <el-tab-pane name="ports" class="h-full flex flex-col">
-          <template #label>
-            <span class="flex items-center gap-2"><el-icon><Connection /></el-icon> 端口 ({{ ports.length }})</span>
-          </template>
-           <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
-             <el-table :data="ports" style="width: 100%" class="glass-table" empty-text="暂无端口数据">
-               <el-table-column prop="port" label="Port" width="120" sortable>
-                 <template #default="{ row }">
-                   <span class="text-blue-400 font-mono font-black text-lg">#{{ row.port }}</span>
-                 </template>
-               </el-table-column>
-               <el-table-column prop="ip" label="IP Address" width="180" />
-               <el-table-column prop="service" label="Service">
-                  <template #default="{ row }">
-                    <span class="text-slate-200 font-medium">{{ row.service }}</span>
-                  </template>
-               </el-table-column>
-             </el-table>
+           <div 
+             v-for="item in webServices" 
+             :key="item.id"
+             @click="openDrawer(item)"
+             class="group grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/[0.02] hover:bg-white/[0.02] cursor-pointer transition-colors items-center relative"
+             :class="{ 'bg-blue-500/[0.05]': selectedAsset?.id === item.id }"
+           >
+              <div v-if="selectedAsset?.id === item.id" class="absolute left-0 top-0 bottom-0 w-[3px] bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+
+              <div class="col-span-5 min-w-0">
+                 <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded bg-slate-800/50 border border-white/5 flex items-center justify-center shrink-0 text-slate-500 group-hover:border-white/20 transition-colors">
+                       <el-icon size="14"><Globe /></el-icon>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                       <div class="text-sm font-medium text-slate-200 truncate font-mono hover:text-blue-400 transition-colors">
+                          {{ item.url }}
+                       </div>
+                       <div class="text-xs text-slate-500 truncate mt-0.5">
+                          {{ item.title || 'No title' }}
+                       </div>
+                    </div>
+                 </div>
+              </div>
+
+              <div class="col-span-3">
+                 <div class="flex flex-wrap gap-1.5 h-6 overflow-hidden mask-image-b">
+                    <span v-for="(ver, name) in item.tech || {}" :key="name" 
+                          class="px-1.5 py-px rounded-[4px] border border-white/10 bg-[#1e293b]/50 text-[10px] text-slate-400 flex items-center hover:border-slate-500 transition-colors">
+                       {{ name }}
+                    </span>
+                    <span v-if="!item.tech" class="text-slate-700 text-xs">-</span>
+                 </div>
+              </div>
+
+              <div class="col-span-2">
+                 <div class="flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full" :class="getStatusColor(item.status, 'bg')"></div>
+                    <span class="text-xs font-mono font-medium" :class="getStatusColor(item.status, 'text')">
+                       {{ item.status || 'ERR' }}
+                    </span>
+                 </div>
+              </div>
+
+              <div class="col-span-2 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                 <el-button link size="small" @click.stop="openLink(item.url)">
+                    <el-icon><Link /></el-icon>
+                 </el-button>
+              </div>
            </div>
-        </el-tab-pane>
 
-      </el-tabs>
+           <div v-if="webServices.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-500">
+              <el-icon size="48" class="mb-4 opacity-20"><Monitor /></el-icon>
+              <p>No web services found</p>
+           </div>
+        </div>
+        
+        </main>
     </div>
+
+    <AssetDrawer 
+      :visible="!!selectedAsset" 
+      :asset="selectedAsset || {}"
+      @close="selectedAsset = null"
+    />
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { 
-  Globe, Connection, Lightning, Delete, MoreFilled, 
-  Files, Monitor, Warning, Link, Cpu 
+  Globe, Monitor, Files, Warning, ArrowRight, Search, 
+  Refresh, Link 
 } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  fetchAssetById, 
-  fetchAssetPorts, 
-  fetchAssetVulns,
-  fetchAssetHosts,
-  fetchAssetWeb,
-  triggerScan,
-  deleteAsset,
-  type Asset,
-  type Port,
-  type Host,
-  type WebService
-} from '@/api/scan'
+import AssetDrawer from '@/components/AssetDrawer.vue'
+import { fetchAssetById, fetchAssetWeb } from '@/api/scan'
 
 const route = useRoute()
-const router = useRouter()
 const assetId = Number(route.params.assetId)
 
-const activeTab = ref('hosts')
+// Data
+const assetInfo = ref<any>(null)
+const webServices = ref<any[]>([])
+const activeTab = ref('web')
+const selectedAsset = ref<any>(null) // 控制抽屉的数据源
 const scanning = ref(false)
-const assetInfo = ref<Asset | null>(null)
-const hosts = ref<Host[]>([])
-const webServices = ref<WebService[]>([])
-const ports = ref<Port[]>([])
-const vulns = ref<any[]>([])
+const searchQuery = ref('')
 
-// --- 关键修复：数据加载逻辑 ---
-const loadData = async () => {
-  if (!assetId) return
-  try {
-    // 1. 发起请求
-    const [assetRes, hostRes, webRes, portRes, vulnRes] = await Promise.all([
-      fetchAssetById(assetId),
-      fetchAssetHosts(assetId, { limit: 500 }),
-      fetchAssetWeb(assetId, { limit: 500 }),
-      fetchAssetPorts(assetId, { limit: 500 }),
-      fetchAssetVulns(assetId, { limit: 500 })
-    ])
-    
-    // 2. 正确赋值 (后端返回的是 { items: [...], has_more: ... }，需要取 .items)
-    // request 拦截器已经去掉了最外层的 code/message 包装，所以这里直接拿到 payload
-    
-    assetInfo.value = assetRes // 单个对象，没有 items
-    
-    // 列表数据，必须取 items，否则 element-plus table 会报错或不显示
-    hosts.value = hostRes.items || []       
-    webServices.value = webRes.items || []
-    ports.value = portRes.items || []
-    vulns.value = vulnRes.items || []
+// Tabs Config
+const tabs = computed(() => [
+  { id: 'hosts', label: 'Subdomains', icon: Files, count: 0 },
+  { id: 'web', label: 'Web Services', icon: Monitor, count: webServices.value.length },
+  { id: 'vulns', label: 'Vulnerabilities', icon: Warning, count: 0 },
+])
 
-    // 智能切换 Tab
-    if (vulns.value.length > 0) activeTab.value = 'vulns'
-    else if (webServices.value.length > 0) activeTab.value = 'web'
-    else activeTab.value = 'hosts'
-
-  } catch (e: any) {
-    console.error(e)
-    ElMessage.error(e.message || '加载资产数据失败')
-  }
+// Helpers
+const openDrawer = (item: any) => {
+  selectedAsset.value = item
 }
 
-// 辅助函数
-const formatDate = (str?: string) => str ? new Date(str).toLocaleDateString() : '-'
+const getStatusColor = (code: number, type: 'bg' | 'text') => {
+  if (!code) return type === 'bg' ? 'bg-slate-700' : 'text-slate-500'
+  if (code >= 200 && code < 300) return type === 'bg' ? 'bg-emerald-500' : 'text-emerald-400'
+  if (code >= 300 && code < 400) return type === 'bg' ? 'bg-blue-500' : 'text-blue-400'
+  if (code >= 400 && code < 500) return type === 'bg' ? 'bg-orange-500' : 'text-orange-400'
+  return type === 'bg' ? 'bg-red-500' : 'text-red-400'
+}
+
 const openLink = (url: string) => window.open(url, '_blank')
+const handleRescan = () => { /* 逻辑 */ }
 
-const getStatusCodeColor = (code: number, type: 'bg' | 'badge') => {
-  if (!code) return type === 'bg' ? 'bg-slate-700' : 'bg-slate-700 text-slate-400'
-  if (code >= 200 && code < 300) return type === 'bg' ? 'bg-emerald-500' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-  if (code >= 300 && code < 400) return type === 'bg' ? 'bg-blue-500' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-  if (code >= 400 && code < 500) return type === 'bg' ? 'bg-orange-500' : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-  return type === 'bg' ? 'bg-red-500' : 'bg-red-500/20 text-red-400 border border-red-500/30'
-}
-
-const getSeverityType = (sev: string) => {
-  if (!sev) return 'info'
-  const s = sev.toLowerCase()
-  if (['critical', 'high'].includes(s)) return 'danger'
-  if (['medium'].includes(s)) return 'warning'
-  if (['low'].includes(s)) return 'primary'
-  return 'info'
-}
-
-const handleRescan = async () => {
-  scanning.value = true
-  try {
-    await triggerScan({ asset_id: assetId, strategy_name: 'discovery' })
-    ElMessage.success('扫描任务已提交')
-    router.push('/tasks')
-  } catch (e: any) {
-    ElMessage.error(e.message || '启动失败')
-  } finally {
-    scanning.value = false
-  }
-}
-
-const handleCommand = (command: string) => {
-  if (command === 'delete') {
-    ElMessageBox.confirm('确定要删除该资产吗？', '警告', { type: 'warning', customClass: 'glass-message-box' })
-      .then(async () => {
-        await deleteAsset(assetId)
-        ElMessage.success('已删除')
-        router.push('/assets')
-      })
-      .catch(() => {})
-  }
-}
-
-const tableRowClassName = ({ rowIndex }: { rowIndex: number }) => rowIndex % 2 === 0 ? 'bg-transparent' : 'bg-slate-800/20'
-
-onMounted(() => {
-  loadData()
+// Init
+onMounted(async () => {
+  if (!assetId) return
+  // 并行加载
+  const [assetRes, webRes] = await Promise.all([
+    fetchAssetById(assetId),
+    fetchAssetWeb(assetId, { limit: 500 })
+  ])
+  
+  assetInfo.value = assetRes.data || assetRes
+  webServices.value = webRes.items || [] // 确保取 items
 })
 </script>
 
 <style scoped>
-.fade-in { animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-.stat-badge {
-  @apply px-3 py-1 rounded-lg border flex flex-col items-center justify-center min-w-[60px] cursor-default select-none;
-}
-
-/* Tabs 定制 */
-:deep(.glass-tabs .el-tabs__header) {
-  margin: 0;
-  background: rgba(15, 23, 42, 0.6);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 0 16px;
-}
-:deep(.glass-tabs .el-tabs__nav-wrap::after) { display: none; }
-:deep(.glass-tabs .el-tabs__item) {
-  color: #94a3b8;
-  height: 48px;
-  line-height: 48px;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-:deep(.glass-tabs .el-tabs__item:hover) { color: #e2e8f0; }
-:deep(.glass-tabs .el-tabs__item.is-active) { color: #38bdf8; font-weight: bold; }
-:deep(.glass-tabs .el-tabs__content) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-
-/* 表格定制 */
-:deep(.glass-table) {
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: rgba(30, 41, 59, 0.4);
-  --el-table-border-color: rgba(255, 255, 255, 0.05);
-  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.08);
-  --el-table-text-color: #cbd5e1;
-  --el-table-header-text-color: #94a3b8;
-}
-:deep(.el-table__inner-wrapper::before) { display: none; }
-:deep(.el-table__empty-text) { color: #64748b; background: transparent; }
-
-/* 滚动条 */
-.custom-scrollbar::-webkit-scrollbar { width: 6px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+/* 局部滚动条样式 */
+.custom-scrollbar::-webkit-scrollbar { width: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; border: 2px solid #0f172a; }
 </style>
