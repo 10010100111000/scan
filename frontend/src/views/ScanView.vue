@@ -9,7 +9,7 @@
     <div class="flex-1 w-full max-w-3xl px-6 z-10 flex flex-col items-center justify-center">
       
       <h1 class="text-4xl md:text-6xl font-black mb-4 tracking-tight text-center text-slate-200">
-        What to <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">scan</span> today?
+         <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">扫描控制台</span>
       </h1>
       <p class="text-slate-400 mb-12 text-lg md:text-xl font-light text-center max-w-xl mx-auto">
         输入域名、IP 或 CIDR。全网资产，一键触达。
