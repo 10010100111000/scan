@@ -60,13 +60,11 @@ export interface ScanSubmissionResponse {
   task_ids: number[]
 }
 
-// [新增] 扫描请求参数接口 (对应后端 ScanRequest Schema)
 export interface CreateScanRequest {
   asset_id: number
   strategy_name: string
 }
 
-// [新增] 资产查询参数
 export interface AssetQueryParams {
   skip?: number
   limit?: number
@@ -74,8 +72,10 @@ export interface AssetQueryParams {
   project_id?: number
 }
 
-// --- 结果详情相关类型 ---
-export interface HostSummary {
+// --- 结果详情相关类型 (Results Types) ---
+
+// [新增] 主机/子域名类型
+export interface Host {
   id: number
   hostname: string
   status: string
@@ -86,30 +86,42 @@ export interface HostSummary {
   root_asset_id: number
 }
 
+// 兼容旧命名，如果其他地方用到
+export type HostSummary = Host
+
+// [新增] 主机列表响应结构 (支持游标分页)
 export interface HostListResponse {
-  items: HostSummary[]
+  items: Host[]
   next_cursor: number | null
   has_more: boolean
   limit: number
 }
 
-export interface PortSummary {
+// [新增] 端口类型
+export interface Port {
   id: number
   ip: string
   port: number
   service?: string | null
+  protocol?: string | null
   root_asset_id?: number | null
 }
 
-export interface HTTPServiceSummary {
+export type PortSummary = Port
+
+// [新增] Web 服务类型
+export interface WebService {
   id: number
   url: string
   title?: string | null
-  tech?: string | null
+  tech?: any | null // 技术栈指纹
   status?: number | null
 }
 
-export interface VulnerabilitySummary {
+export type HTTPServiceSummary = WebService
+
+// [新增] 漏洞类型
+export interface Vulnerability {
   id: number
   name: string
   severity: string
@@ -122,6 +134,9 @@ export interface VulnerabilitySummary {
   updated_at?: string | null
 }
 
+export type VulnerabilitySummary = Vulnerability
+
+// [新增] 通用分页列表响应
 export interface OffsetListResponse<T> {
   items: T[]
   next_offset: number | null
@@ -242,6 +257,10 @@ export async function retryTask(taskId: number, payload: { mode: 'strategy' | 's
 
 // --- 结果查询接口 (Host/Port/Web/Vuln) ---
 
+/**
+ * [Results] 获取资产下的子域名/主机
+ * 注意：后端使用的是 Cursor 分页 (基于 ID)，而不是 skip/limit
+ */
 export async function fetchAssetHosts(
   assetId: number,
   params: { limit?: number; cursor?: number | null } = {}
@@ -249,40 +268,53 @@ export async function fetchAssetHosts(
   return request<HostListResponse>(http.get(`/results/assets/${assetId}/hosts`, { params }))
 }
 
+/**
+ * [Results] 获取资产下的开放端口
+ */
 export async function fetchAssetPorts(
   assetId: number,
   params: { skip?: number; limit?: number } = {}
 ) {
-  return request<OffsetListResponse<PortSummary>>(http.get(`/results/assets/${assetId}/ports`, { params }))
+  return request<OffsetListResponse<Port>>(http.get(`/results/assets/${assetId}/ports`, { params }))
 }
 
+/**
+ * [Results] 获取资产下的 Web 服务
+ * 包含 Title, Tech指纹, Status Code 等丰富信息
+ */
 export async function fetchAssetWeb(
   assetId: number,
   params: { skip?: number; limit?: number } = {}
 ) {
-  return request<OffsetListResponse<HTTPServiceSummary>>(http.get(`/results/assets/${assetId}/web`, { params }))
+  return request<OffsetListResponse<WebService>>(http.get(`/results/assets/${assetId}/web`, { params }))
 }
 
+/**
+ * [Results] 获取资产下的漏洞信息
+ */
 export async function fetchAssetVulns(
   assetId: number,
   params: { skip?: number; limit?: number } = {}
 ) {
-  return request<OffsetListResponse<VulnerabilitySummary>>(http.get(`/results/assets/${assetId}/vulns`, { params }))
+  return request<OffsetListResponse<Vulnerability>>(http.get(`/results/assets/${assetId}/vulns`, { params }))
 }
 
+// --- 单个详情查询 ---
+
 export async function fetchHostDetail(hostId: number) {
-  return request<HostSummary>(http.get(`/results/hosts/${hostId}`))
+  return request<Host>(http.get(`/results/hosts/${hostId}`))
 }
 
 export async function fetchPortDetail(portId: number) {
-  return request<PortSummary>(http.get(`/results/ports/${portId}`))
+  return request<Port>(http.get(`/results/ports/${portId}`))
 }
 
 export async function fetchVulnDetail(vulnId: number) {
-  return request<VulnerabilitySummary>(http.get(`/results/vulns/${vulnId}`))
+  return request<Vulnerability>(http.get(`/results/vulns/${vulnId}`))
 }
 
-//  仪表盘数据接口定义
+// --- 仪表盘 API ---
+
 export interface DashboardStats {
   kpi: {
     assets_total: number
@@ -290,6 +322,7 @@ export interface DashboardStats {
     tasks_running: number
     tasks_pending: number
     tasks_completed_today: number
+    vulns_critical: number // [注] 对应后端返回的高危漏洞数
   }
   charts: {
     trend_dates: string[]
@@ -306,7 +339,9 @@ export interface DashboardStats {
   }
 }
 
-// 获取仪表盘聚合数据的方法
+/**
+ * [Dashboard] 获取仪表盘聚合数据
+ */
 export async function fetchDashboardStats() {
   return request<DashboardStats>(http.get('/stats/dashboard'))
 }
