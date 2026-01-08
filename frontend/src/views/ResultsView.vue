@@ -7,7 +7,7 @@
           <router-link to="/assets" class="hover:text-white transition-colors">Assets</router-link>
           <el-icon><ArrowRight /></el-icon>
           <span class="text-slate-100 flex items-center gap-2">
-            <el-icon v-if="assetInfo?.type === 'domain'" class="text-blue-400"><Globe /></el-icon>
+            <el-icon v-if="assetInfo?.type === 'domain'" class="text-blue-400"><ChromeFilled /></el-icon>
             {{ assetInfo?.name }}
           </span>
         </div>
@@ -80,7 +80,7 @@
               <div class="col-span-5 min-w-0">
                  <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded bg-slate-800/50 border border-white/5 flex items-center justify-center shrink-0 text-slate-500 group-hover:border-white/20 transition-colors">
-                       <el-icon size="14"><Globe /></el-icon>
+                       <el-icon size="14"><ChromeFilled /></el-icon>
                     </div>
                     <div class="min-w-0 flex-1">
                        <div class="text-sm font-medium text-slate-200 truncate font-mono hover:text-blue-400 transition-colors">
@@ -125,7 +125,24 @@
            </div>
         </div>
         
-        </main>
+        <div v-if="activeTab === 'hosts'" class="flex flex-col min-w-[800px]">
+           <div class="sticky top-0 z-10 grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/5 bg-[#0f172a]/95 backdrop-blur text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <div class="col-span-6">Hostname</div>
+              <div class="col-span-4">Resolution</div>
+              <div class="col-span-2 text-right">Status</div>
+           </div>
+           
+           <div v-for="host in hosts" :key="host.id" 
+                class="grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/[0.02] hover:bg-white/[0.02] items-center">
+              <div class="col-span-6 font-mono text-sm text-slate-300">{{ host.hostname }}</div>
+              <div class="col-span-4 flex flex-wrap gap-2">
+                 <span v-for="ip in host.ips" :key="ip" class="px-1.5 rounded bg-slate-800 text-slate-400 text-xs border border-white/5">{{ ip }}</span>
+              </div>
+              <div class="col-span-2 text-right text-xs text-slate-500 uppercase">{{ host.status }}</div>
+           </div>
+        </div>
+
+      </main>
     </div>
 
     <AssetDrawer 
@@ -141,11 +158,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { 
-  Globe, Monitor, Files, Warning, ArrowRight, Search, 
+  ChromeFilled, // [修复] 已替换 Globe
+  Monitor, Files, Warning, ArrowRight, Search, 
   Refresh, Link 
 } from '@element-plus/icons-vue'
 import AssetDrawer from '@/components/AssetDrawer.vue'
-import { fetchAssetById, fetchAssetWeb } from '@/api/scan'
+import { fetchAssetById, fetchAssetWeb, fetchAssetHosts } from '@/api/scan'
 
 const route = useRoute()
 const assetId = Number(route.params.assetId)
@@ -153,14 +171,15 @@ const assetId = Number(route.params.assetId)
 // Data
 const assetInfo = ref<any>(null)
 const webServices = ref<any[]>([])
+const hosts = ref<any[]>([]) // 新增 hosts 数据
 const activeTab = ref('web')
-const selectedAsset = ref<any>(null) // 控制抽屉的数据源
+const selectedAsset = ref<any>(null)
 const scanning = ref(false)
 const searchQuery = ref('')
 
 // Tabs Config
 const tabs = computed(() => [
-  { id: 'hosts', label: 'Subdomains', icon: Files, count: 0 },
+  { id: 'hosts', label: 'Subdomains', icon: Files, count: hosts.value.length },
   { id: 'web', label: 'Web Services', icon: Monitor, count: webServices.value.length },
   { id: 'vulns', label: 'Vulnerabilities', icon: Warning, count: 0 },
 ])
@@ -184,19 +203,23 @@ const handleRescan = () => { /* 逻辑 */ }
 // Init
 onMounted(async () => {
   if (!assetId) return
-  // 并行加载
-  const [assetRes, webRes] = await Promise.all([
-    fetchAssetById(assetId),
-    fetchAssetWeb(assetId, { limit: 500 })
-  ])
-  
-  assetInfo.value = assetRes.data || assetRes
-  webServices.value = webRes.items || [] // 确保取 items
+  try {
+    const [assetRes, webRes, hostRes] = await Promise.all([
+      fetchAssetById(assetId),
+      fetchAssetWeb(assetId, { limit: 500 }),
+      fetchAssetHosts(assetId, { limit: 500 }) // 同时加载子域名
+    ])
+    
+    assetInfo.value = assetRes.data || assetRes
+    webServices.value = webRes.items || []
+    hosts.value = hostRes.items || []
+  } catch (e) {
+    console.error(e)
+  }
 })
 </script>
 
 <style scoped>
-/* 局部滚动条样式 */
 .custom-scrollbar::-webkit-scrollbar { width: 8px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; border: 2px solid #0f172a; }
