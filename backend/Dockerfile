@@ -42,7 +42,7 @@ RUN set -eux; \
     echo "Using arch: $PD_ARCH"; \
     \
     wget https://gh-proxy.org/https://github.com/projectdiscovery/subfinder/releases/download/v2.6.6/subfinder_2.6.6_linux_${PD_ARCH}.zip; \
-    unzip -jq subfinder_2.6.6_linux_${PD_ARCH}.zip subfinder; \
+    unzip -jq subfinder_2.11.0_linux_${PD_ARCH}.zip subfinder; \
     mv subfinder /usr/local/bin/; \
     \
     wget https://gh-proxy.org/https://github.com/projectdiscovery/naabu/releases/download/v2.3.1/naabu_2.3.1_linux_${PD_ARCH}.zip; \
